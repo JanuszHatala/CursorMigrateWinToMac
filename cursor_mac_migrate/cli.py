@@ -9,6 +9,7 @@ from pathlib import Path
 
 from cursor_mac_migrate import __version__
 from cursor_mac_migrate.apply import apply_map, write_report
+from cursor_mac_migrate.auto import build_auto_plan
 from cursor_mac_migrate.detect import proposed_map, scan_tree
 from cursor_mac_migrate.extensions import cursor_cli, iter_extensions, reinstall
 from cursor_mac_migrate.lock import assert_cursor_closed
@@ -34,6 +35,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="cmd", required=True)
+
+    auto_p = sub.add_parser(
+        "auto",
+        help="Replace every C:\\Users\\<windows name> path with the same path under your Mac home",
+    )
+    _add_common(auto_p)
+    auto_p.add_argument("--windows-home", required=True, help=r"Example: C:\Users\janusz")
+    auto_p.add_argument("--mac-home", default=str(Path.home()), help="Example: /Users/jh")
+    auto_p.add_argument("--python", default=None, help="Mac python3, from: which python3")
+    auto_p.add_argument("--intellij", default=None, help="Path ending in .app, or omit to auto-detect")
+    auto_p.add_argument("--apply", action="store_true", help="Rewrite files. Without this, only a preview.")
+    auto_p.add_argument("--allow-running", action="store_true")
 
     scan_p = sub.add_parser("scan", help="Find Windows paths still stored in the copied profile")
     _add_common(scan_p)
@@ -90,6 +103,8 @@ def main(argv: list[str] | None = None) -> int:
     keys_p.add_argument("--allow-running", action="store_true")
 
     args = parser.parse_args(argv)
+    if args.cmd == "auto":
+        return cmd_auto(args)
     if args.cmd == "scan":
         return cmd_scan(args)
     if args.cmd == "check-map":
@@ -120,6 +135,99 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def cmd_auto(args: argparse.Namespace) -> int:
+    user_dir = args.user_dir.expanduser()
+    dot_cursor = args.dot_cursor.expanduser()
+    if not user_dir.exists():
+        print("The copied Cursor folder is not where the Mac expects it.")
+        print("In Finder: Go → Go to Folder, then paste this and press Return:")
+        print("  ~/Library/Application Support/Cursor/User")
+        print("You should see settings.json in that folder. It is not there yet.")
+        return 1
+    mac_home = str(Path(args.mac_home).expanduser())
+    desktop = Path(mac_home) / "Desktop"
+    desktop.mkdir(parents=True, exist_ok=True)
+    print("Reading the copied Cursor data. This can take a minute. Nothing is printed until it finishes.")
+    scan = scan_tree(user_dir, dot_cursor)
+    intellij = args.intellij if args.intellij else default_intellij()
+    plan = build_auto_plan(
+        scan,
+        args.windows_home,
+        mac_home,
+        python=args.python or default_python(),
+        intellij=intellij,
+        user_dir=user_dir,
+        dot_cursor=dot_cursor,
+    )
+    map_path = desktop / "path-map.json"
+    map_path.write_text(json.dumps(dump_path_map(plan.path_map), indent=2) + "\n", encoding="utf-8")
+    (desktop / "cursor-migrate-ready.txt").write_text(
+        "\n".join(plan.ready) + ("\n" if plan.ready else ""),
+        encoding="utf-8",
+    )
+    (desktop / "cursor-migrate-missing.txt").write_text(
+        "\n".join(plan.missing) + ("\n" if plan.missing else ""),
+        encoding="utf-8",
+    )
+    (desktop / "cursor-migrate-outside-home.txt").write_text(
+        "\n".join(plan.outside_home) + ("\n" if plan.outside_home else ""),
+        encoding="utf-8",
+    )
+
+    print()
+    print("Every Windows path under your user folder is rewritten like this:")
+    print(f"  {plan.windows_home}\\anything  ->  {plan.mac_home}/anything")
+    print()
+    print(f"Python the tool will write into settings: {plan.python or 'not found'}")
+    if plan.intellij:
+        print(f"IntelliJ the tool will write into settings: {plan.intellij}")
+    else:
+        print("IntelliJ was not found in /Applications. Project paths are still rewritten.")
+        print("After you install IntelliJ, drag IntelliJ IDEA.app onto Terminal and rerun with --intellij and that path.")
+    print()
+    print(f"Skills already on this Mac: {len(plan.skills)}")
+    print(f"Projects whose Mac folder already exists: {len(plan.ready)}")
+    print(f"Projects not copied to the matching Mac folder yet: {len(plan.missing)}")
+    print(f"Projects that were not under {plan.windows_home}: {len(plan.outside_home)}")
+    print()
+    print("The long lists are files on your Desktop, not in this window:")
+    print(f"  {desktop / 'cursor-migrate-ready.txt'}")
+    print(f"  {desktop / 'cursor-migrate-missing.txt'}")
+    print(f"  {desktop / 'cursor-migrate-outside-home.txt'}")
+
+    if not args.apply:
+        print()
+        print("No files were changed. Quit Cursor, then run the same command again with --apply at the end.")
+        return 0
+
+    assert_cursor_closed(allow_running=args.allow_running)
+    report = apply_map(plan.path_map, dry_run=False, skip_missing=True)
+    report_path = desktop / "cursor-migrate-report.json"
+    write_report(report, report_path)
+    attached = [item for item in report.relink.items if item.status in {"renamed", "unchanged-id"}]
+    not_attached = [item for item in report.relink.items if item.status not in {"renamed", "unchanged-id", "skip"}]
+    (desktop / "cursor-migrate-not-attached.txt").write_text(
+        "\n".join(
+            f"{item.status}\t{item.windows_uri}\t{item.mac_path}\t{item.detail}"
+            for item in not_attached
+        )
+        + ("\n" if not_attached else ""),
+        encoding="utf-8",
+    )
+    print()
+    print(f"Rewrote the copied Cursor data. Backup: {report.backup_dir}")
+    print(f"Chats attached to a Mac folder: {len(attached)}")
+    print(f"Chats left unattached: {len(not_attached)}")
+    if not_attached:
+        print(f"  See {desktop / 'cursor-migrate-not-attached.txt'}")
+    print(f"Text files updated: {len(report.files)}")
+    print(f"Skills: {len(report.skills)}")
+    print()
+    print("Open Cursor. File → Open Folder, or File → Open Workspace from File for a .code-workspace.")
+    print("The Windows chat for that project should be in the agent list.")
+    return 0
+
+
 def cmd_scan(args: argparse.Namespace) -> int:
     user_dir = args.user_dir.expanduser()
     dot_cursor = args.dot_cursor.expanduser()
@@ -135,9 +243,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
         print(f"  - {skill.name}  ({skill})")
     print()
     print(f"Workspaces Cursor knows about: {len(scan.workspace_uris)}")
-    for workspace_id, kind, uri in scan.workspace_uris:
-        print(f"  - [{kind}] {uri}")
-        print(f"      storage id: {workspace_id}")
+    print("The full workspace list is not printed here, so it cannot flood the window.")
     print()
     if scan.python_hits:
         print("Python-looking Windows paths:")
@@ -151,14 +257,10 @@ def cmd_scan(args: argparse.Namespace) -> int:
         print()
     top = scan.windows_paths.most_common(40)
     print(f"Unique Windows paths mentioned: {len(scan.windows_paths)}")
-    for path, count in top:
+    print("A sample is below. The full list is not printed.")
+    for path, count in top[:15]:
         print(f"  {count:5d}  {path}")
     print()
-    print("Suggested mapping roots:")
-    from cursor_mac_migrate.paths import suggest_roots
-
-    for root in suggest_roots(list(scan.windows_paths)):
-        print(f"  - {root}")
     if args.write_map:
         payload = proposed_map(scan, Path.home())
         payload["tools"]["python"] = default_python() or payload["tools"]["python"]
@@ -256,9 +358,13 @@ def cmd_verify(args: argparse.Namespace) -> int:
     leftover = scan.windows_paths
     print(f"Windows paths still stored: {len(leftover)}")
     if leftover:
-        for path, count in leftover.most_common(30):
-            print(f"  {count:5d}  {path}")
-        print("Add the missing prefixes to path-map.json and rerun apply.")
+        desktop = Path.home() / "Desktop" / "cursor-migrate-still-windows.txt"
+        desktop.write_text(
+            "\n".join(f"{count}\t{path}" for path, count in leftover.most_common()) + "\n",
+            encoding="utf-8",
+        )
+        print(f"  The list is in {desktop}")
+        print("  It is not printed here.")
         status = 1
     else:
         print("  none — path rewrite looks complete.")
