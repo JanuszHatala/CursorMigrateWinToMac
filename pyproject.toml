@@ -1,0 +1,24 @@
+[project]
+name = "cursor-mac-migrate"
+version = "1.0.0"
+description = "Remap a copied Windows Cursor profile onto macOS so chats, skills, and multi-root workspaces keep working."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+[project.scripts]
+cursor-mac-migrate = "cursor_mac_migrate.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["cursor_mac_migrate*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

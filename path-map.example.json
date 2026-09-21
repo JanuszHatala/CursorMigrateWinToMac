@@ -1,0 +1,30 @@
+{
+  "homes": {
+    "windows": "C:\\Users\\Alice",
+    "mac": "/Users/alice"
+  },
+  "roots": [
+    {
+      "windows": "C:\\Users\\Alice\\dev",
+      "mac": "/Users/alice/dev",
+      "kind": "folder"
+    },
+    {
+      "windows": "D:\\work",
+      "mac": "/Users/alice/work",
+      "kind": "folder"
+    }
+  ],
+  "workspaces": [
+    {
+      "windows": "C:\\Users\\Alice\\dev\\platform.code-workspace",
+      "mac": "/Users/alice/dev/platform.code-workspace"
+    }
+  ],
+  "tools": {
+    "python": "/usr/bin/python3",
+    "intellij": "/Applications/IntelliJ IDEA.app"
+  },
+  "cursor_user_dir": "/Users/alice/Library/Application Support/Cursor/User",
+  "dot_cursor": "/Users/alice/.cursor"
+}
