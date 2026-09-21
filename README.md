@@ -1,249 +1,389 @@
-# Cursor Windows → macOS migrate
+# Move Cursor from your Windows PC to your Mac
 
-This is a small command-line tool you run **on the Mac after** you have already copied the Cursor profile. It does the part that a copy cannot do: rewrite Windows paths, recompute workspace IDs, and point historical agent sessions at the Mac folders.
+You already copied the Cursor folders. This page is the rest: make the Mac open the same AI chats, the same skills, and the same multi-repo workplaces.
 
-## What "done" looks like
+You will use two apps on the Mac:
 
-1. You open a repo (or a multi-root `.code-workspace`) on the Mac and the **same agent session you started on Windows** is in the sidebar, and you can keep chatting.
-2. Skills that lived in `%USERPROFILE%\.cursor\skills` show up automatically (Customize → Skills).
-3. A multi-repo workplace whose `.code-workspace` listed `C:\...` folders opens those same repos from their Mac paths.
+- **Terminal**. A window where you paste commands. The computer runs them and prints the answer underneath.
+- **TextEdit**. To edit one settings file the tool writes for you.
 
-Signing into Cursor is **not** enough for (1). Chats are local SQLite. Cursor keys them by a hash of the **absolute path**. `C:\Users\you\dev\api` and `/Users/you/dev/api` are different workspaces until this tool relinks them.
+You do not type paths from memory. Every path below is something a command prints, or a folder you drag from Finder.
 
-## Prerequisites
+Cursor on the Mac must stay **quit** until the last step. If it is open: click the word **Cursor** in the top menu bar, then **Quit Cursor**.
 
-Do these on the Mac, Cursor fully quit (Cmd+Q, then Activity Monitor: no Cursor process).
+---
 
-Copied already (your steps 1 and 2):
+## 1. Open Terminal
 
-| Windows | Mac |
-| --- | --- |
-| `%APPDATA%\Cursor\User` | `~/Library/Application Support/Cursor/User` |
-| `%USERPROFILE%\.cursor` | `~/.cursor` |
+1. Click the magnifying glass at the top right of the Mac screen, or press **Command** and **Space** together.
+2. Type `Terminal`.
+3. Press Return. A window opens with a blinking cursor. That is Terminal.
 
-Also:
+The folder Terminal is "standing in" matters. A command runs inside the current folder. You will see that folder change when you use `cd`.
 
-- Cursor installed and signed in (User Rules in Customize → Rules come from the account).
-- Every repo you care about **cloned on the Mac** at the paths you will put in the map.
-- Every multi-root workplace file copied to a Mac path, for example `~/dev/platform.code-workspace`.
-
-Do **not** open those folders in Cursor until after `apply`. Opening them first creates an empty Mac workspace ID and collides with the Windows one.
-
-## Install the tool
+To see the folder you are in, paste this and press Return:
 
 ```bash
-cd /path/to/this/repo
+pwd
+```
+
+`pwd` means "print working directory". It prints one line, for example:
+
+```text
+/Users/jan
+```
+
+That line is your Mac home folder. Yours will not say `jan`. It will say your Mac user name. Copy that line somewhere. You need it later.
+
+Also paste:
+
+```bash
+whoami
+```
+
+That prints only the short name, for example `jan`. It is the last piece of the home folder.
+
+---
+
+## 2. Put this tool on the Desktop
+
+This guide is a small program. It lives in a folder that contains:
+
+- a file named `migrate.sh`
+- a folder named `cursor_mac_migrate`
+
+That folder has to be on the Mac. The Desktop is a fine place. The name of the folder can be anything. What matters is that those two items are inside it.
+
+If you cloned or downloaded this project, the folder is wherever you put the download. In Finder, move that folder onto the Desktop so you can see it.
+
+Then, in Terminal, paste these two lines, one at a time:
+
+```bash
+cd "$HOME/Desktop"
+ls
+```
+
+`$HOME` is the folder `pwd` printed. You do not replace it. The Mac fills it in.
+
+`ls` prints the names on the Desktop. Find the folder that contains this tool. Suppose `ls` shows a name `cursor-mac-migrate`. Go into it:
+
+```bash
+cd cursor-mac-migrate
+ls
+```
+
+Use the name `ls` actually printed, not the example `cursor-mac-migrate`.
+
+Check that you are in the right folder. The second `ls` must show `migrate.sh` and `cursor_mac_migrate`. If it does not, you are in the wrong folder. Run `cd "$HOME/Desktop"` again and pick the folder that does contain them.
+
+`pwd` now prints something like:
+
+```text
+/Users/jan/Desktop/cursor-mac-migrate
+```
+
+Stay in this folder for every later command. If you close Terminal, open it again and `cd` back here before continuing.
+
+---
+
+## 3. Check that the copied Cursor files are really there
+
+In Finder, click **Go** in the top menu bar, then **Go to Folder…**. Paste this and press Return:
+
+```text
+~/Library/Application Support/Cursor/User
+```
+
+You should see files named `settings.json` and `keybindings.json`, and folders named `globalStorage` and `workspaceStorage`. That is the copy of the Windows Cursor profile. If the folder is missing, the earlier copy did not land here. Stop and copy it again before going on.
+
+Back in Terminal, paste:
+
+```bash
+ls "$HOME/Library/Application Support/Cursor/User"
+ls "$HOME/.cursor/skills"
+```
+
+The second command lists your skills. Each skill is a folder that contains a file named `SKILL.md`. If this list is empty, the Windows `.cursor` folder was not copied to the Mac home folder. On Windows that folder is inside your user folder and is named `.cursor` (it is hidden). On the Mac it must be the hidden folder `~/.cursor`.
+
+---
+
+## 4. Install the tool, once
+
+Still inside the tool folder (the one whose `ls` showed `migrate.sh`), paste this whole block:
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -e ".[dev]"
 ```
 
-Or run it without installing:
+The first line creates a private Python folder named `.venv` inside the tool folder. The second line turns it on. Your prompt may start with `(.venv)`. The third line installs the tool into that private folder.
+
+If macOS says `python3: command not found`, install Python from [https://www.python.org/downloads/macos/](https://www.python.org/downloads/macos/), close Terminal, open Terminal again, `cd` back into the tool folder, and run the three lines again.
+
+You only do this once. Later, if the prompt does not start with `(.venv)`, run only:
 
 ```bash
-python3 -m cursor_mac_migrate --help
+source .venv/bin/activate
 ```
 
-## The only commands you need
+from inside the tool folder.
 
-Replace paths if your clone of this repo lives somewhere else.
+---
 
-### 1. Scan what Windows left behind
+## 5. Let the tool list your Windows paths
+
+Paste:
 
 ```bash
-python3 -m cursor_mac_migrate scan --write-map ./path-map.json
+python3 -m cursor_mac_migrate scan --write-map "$HOME/Desktop/path-map.json"
 ```
 
-This prints:
+Read the text it prints. It is your data, not an example:
 
-- skills already under `~/.cursor/skills`
-- every workspace Cursor stored (folder vs `.code-workspace`)
-- Windows Python / IntelliJ hits
-- a starter `path-map.json`
+- **Skills found** lists skills copied from Windows. Those are already on the Mac. Nothing else is required for skills, as long as this list matches what you had.
+- **Workspaces Cursor knows about** lists every project and every multi-repo workplace Windows Cursor had open. Each line is a Windows location, for example `file:///c%3A/Users/Jan/source/api`.
+- **Unique Windows paths** is the same information as plain Windows paths, for example `C:\Users\Jan\source\api`.
 
-### 2. Fill in the Mac paths
+A new file appears on the Desktop: `path-map.json`. The tool already filled the Windows side from that scan. You will fill the Mac side.
 
-Edit `path-map.json`. You only need **roots**: longest prefixes, plus each `.code-workspace` file.
+Open it: in Finder, double-click `path-map.json` on the Desktop. If it opens in a browser or in Cursor, right-click it, choose **Open With**, then **TextEdit**.
+
+---
+
+## 6. What to type in `path-map.json`
+
+The file is text in a format called JSON. Two rules:
+
+- A Windows path uses backslashes. Inside this file every backslash is written twice. The real folder `C:\Users\Jan` is written `"C:\\Users\\Jan"`.
+- A Mac path uses forward slashes, written once. `" /Users/jan "` with the quotes, no doubled slashes.
+
+Do not invent a user name. Use the names the commands printed.
+
+### `homes`
+
+This is your personal folder on each computer. It is not a project.
+
+On the Windows PC, open the Start menu, type `PowerShell`, and open **Windows PowerShell**. Paste:
+
+```powershell
+echo $env:USERPROFILE
+```
+
+It prints one line, for example `C:\Users\Jan`. That whole line is `homes.windows`. In the JSON file, double the backslashes:
 
 ```json
-{
-  "homes": {
-    "windows": "C:\\Users\\Alice",
-    "mac": "/Users/alice"
-  },
-  "roots": [
-    {
-      "windows": "C:\\Users\\Alice\\dev",
-      "mac": "/Users/alice/dev",
-      "kind": "folder"
-    },
-    {
-      "windows": "D:\\work",
-      "mac": "/Users/alice/work",
-      "kind": "folder"
-    }
-  ],
-  "workspaces": [
-    {
-      "windows": "C:\\Users\\Alice\\dev\\platform.code-workspace",
-      "mac": "/Users/alice/dev/platform.code-workspace"
-    }
-  ],
-  "tools": {
-    "python": "/opt/homebrew/bin/python3",
-    "intellij": "/Applications/IntelliJ IDEA.app"
-  }
+"windows": "C:\\Users\\Jan"
+```
+
+On the Mac you already ran `pwd` at the start, or run this again in Terminal:
+
+```bash
+echo "$HOME"
+```
+
+It prints one line, for example `/Users/jan`. That whole line is `homes.mac`, written with single slashes:
+
+```json
+"mac": "/Users/jan"
+```
+
+So if PowerShell printed `C:\Users\Jan` and the Mac printed `/Users/jan`, the block is:
+
+```json
+"homes": {
+  "windows": "C:\\Users\\Jan",
+  "mac": "/Users/jan"
 }
 ```
 
-Rules:
+Your names replace `Jan` and `jan`. They are often the same spelling. Sometimes they are not. Use what each computer printed.
 
-- Use real, existing Mac folders. Check with `ls`.
-- Map the parent of many repos once (`...\dev` → `~/dev`). Do not list every repo unless it lives on another drive.
-- Put each multi-root `.code-workspace` under `workspaces` even if it already sits inside a mapped root.
-- JSON strings need doubled backslashes: `"C:\\Users\\Alice"`.
-- `tools.python` should be `which python3` on the Mac. Do not keep a copied Windows `python.exe`.
-- `tools.intellij` should be the `.app` in `/Applications`. Do not keep `idea64.exe`.
+### `roots`
 
-See `path-map.example.json`.
+A root is a parent folder that holds many projects, not one project.
 
-### 3. Confirm the map
+Example, only if your real folders look like this:
 
-```bash
-python3 -m cursor_mac_migrate check-map --map ./path-map.json
+- On Windows, projects live under `C:\Users\Jan\source`
+- On the Mac, you put those same projects under `/Users/jan/source`
+
+Then one root covers all of them:
+
+```json
+"roots": [
+  {
+    "windows": "C:\\Users\\Jan\\source",
+    "mac": "/Users/jan/source",
+    "kind": "folder"
+  }
+]
 ```
 
-Fix anything listed as missing. Clone the repo or copy the `.code-workspace` file, then run check-map again.
+How to find the Windows side: look at the scan output. If many workspaces start with the same `C:\Users\Jan\source\...`, the common beginning `C:\Users\Jan\source` is the root.
 
-### 4. Dry-run, then apply
+How to find the Mac side:
 
-```bash
-python3 -m cursor_mac_migrate apply --map ./path-map.json --dry-run
-python3 -m cursor_mac_migrate apply --map ./path-map.json
+1. In Finder, open the folder where you cloned or copied those projects.
+2. Drag that folder from Finder into the Terminal window. Terminal inserts the full Mac path.
+3. Copy that inserted path into `"mac"`.
+
+If scan shows projects on two Windows drives, for example `C:\Users\Jan\source` and `D:\work`, add a second object in the `roots` list, with a comma between them. Each Windows parent gets the Mac folder you actually use for those projects.
+
+Leave `"kind": "folder"` as written.
+
+### `workspaces`
+
+This is only for multi-repo workplaces: a file whose name ends in `.code-workspace`. One file lists several repos. Chats started in that workplace belong to that file, not to one repo inside it.
+
+The scan lists these with `[workspace]` in front of the line.
+
+On the Mac, that same file has to exist somewhere. Finder: **File → Find**, search for `code-workspace`. Or look in the folder where you copied it.
+
+Drag the file onto Terminal to get its Mac path. Put the Windows path and the Mac path in the file:
+
+```json
+"workspaces": [
+  {
+    "windows": "C:\\Users\\Jan\\source\\platform.code-workspace",
+    "mac": "/Users/jan/source/platform.code-workspace"
+  }
+]
 ```
 
-Apply will:
+If you have no `.code-workspace` files, leave `"workspaces": []`.
 
-- refuse to run if Cursor is still open
-- copy `state.vscdb` aside under `~/Library/Application Support/Cursor/User.mac-migrate-backup-...`
-- rewrite Windows paths inside settings, MCP, skills, workspace files, and the chat databases
-- rename `workspaceStorage/<old-id>` to the ID Cursor will compute on macOS (folder birth time + path, or lowercase path for `.code-workspace` files)
-- patch `composer.composerHeaders` so sessions stay attached to the new ID
-- rewrite Python/IntelliJ executable paths
-- rename `~/.cursor/projects/...` transcript folders
+### `tools`
 
-If a Mac folder does not exist yet and you still want path rewrites:
+**Python.** In Terminal paste:
 
 ```bash
-python3 -m cursor_mac_migrate apply --map ./path-map.json --allow-missing
+which python3
 ```
 
-Chats for that folder will not attach until the folder exists and you run apply again.
+It prints one path, for example `/usr/bin/python3` or `/opt/homebrew/bin/python3`. Put that exact line in the file:
 
-### 5. Verify, then fix native extensions
+```json
+"python": "/usr/bin/python3"
+```
+
+If the command prints nothing, Python is not installed. Install it, open a new Terminal, and run `which python3` again. Do not type a Windows path here. `python.exe` does not run on a Mac.
+
+**IntelliJ.** Open Finder, then **Applications**. Look for an app named IntelliJ IDEA. Drag that app onto Terminal. You get a path that ends in `.app`, for example:
+
+```text
+/Applications/IntelliJ IDEA.app
+```
+
+Put that in the file:
+
+```json
+"intellij": "/Applications/IntelliJ IDEA.app"
+```
+
+If you do not have IntelliJ on the Mac, install it first, or leave the line as the scan wrote it and ignore IntelliJ until you install it.
+
+### The two Cursor lines at the bottom
+
+Leave these as the scan wrote them. They should already be your real Mac folders:
+
+- `cursor_user_dir` is `~/Library/Application Support/Cursor/User`
+- `dot_cursor` is `~/.cursor`
+
+Save the file in TextEdit (**File → Save**).
+
+---
+
+## 7. Check the file, then apply it
+
+Back in Terminal, in the tool folder, with `(.venv)` active:
 
 ```bash
-python3 -m cursor_mac_migrate verify --map ./path-map.json
+python3 -m cursor_mac_migrate check-map --map "$HOME/Desktop/path-map.json"
+```
+
+If it says a folder is missing, that Mac path in the file does not exist. In Finder, confirm the project is really there, fix the path, save, and run `check-map` again.
+
+When check-map says the paths exist, preview the rewrite:
+
+```bash
+python3 -m cursor_mac_migrate apply --map "$HOME/Desktop/path-map.json" --dry-run
+```
+
+Read the summary. Then run it for real. Cursor must still be quit.
+
+```bash
+python3 -m cursor_mac_migrate apply --map "$HOME/Desktop/path-map.json"
+```
+
+This rewrites the copied chat database so each Windows project points at the Mac folder, and it rewrites paths inside settings, skills, and `.code-workspace` files. It saves a backup next to the Cursor User folder. The name starts with `User.mac-migrate-backup-`.
+
+Then:
+
+```bash
+python3 -m cursor_mac_migrate verify --map "$HOME/Desktop/path-map.json"
+```
+
+You want **Windows paths still stored: 0**, or only paths for projects you do not use anymore.
+
+Extensions that contain Windows-only code (Python, C++, PowerShell, and similar) must be installed again for the Mac:
+
+```bash
 python3 -m cursor_mac_migrate reinstall-native-extensions --yes
 ```
 
-`verify` must report **Windows paths still stored: 0** (or only paths you do not care about).
+If that says it cannot find `cursor`: open Cursor, press **Command Shift P**, type `Install 'cursor' command`, run **Shell Command: Install 'cursor' command in PATH**, quit Cursor again, and rerun the reinstall command.
 
-Python, Pylance, C++, PowerShell, and other extensions that shipped `win32` binaries will not work if you copied `~/.cursor/extensions` from Windows. Reinstall them on the Mac. Pure JS extensions (themes, most keybinding packs, IntelliJ **keybindings**) are fine as copied.
-
-In Cursor on the Mac, run **Shell Command: Install `cursor` command in PATH** once if `reinstall-native-extensions` cannot find `cursor`.
-
-### 6. Optional: Ctrl → Cmd for custom keybindings
-
-Profile import usually does this. If you copied `keybindings.json` raw:
+Custom keyboard shortcuts that only say `ctrl` can get a Mac `cmd` copy:
 
 ```bash
-python3 -m cursor_mac_migrate mac-cmd-keybindings --dry-run
 python3 -m cursor_mac_migrate mac-cmd-keybindings
 ```
 
-That adds a `"mac": "cmd+..."` field wherever a custom binding only had `ctrl+`.
+---
 
-### 7. Open Cursor the right way
+## 8. Open Cursor and continue the old chat
 
-1. Start Cursor. Sign in.
-2. Customize → Skills: your Windows skills should already be listed.
-3. **Multi-repo workplace:** File → Open Workspace from File… → the Mac `.code-workspace`. Do not open a single inner folder and expect the multi-root chats.
-4. **Single repo:** File → Open Folder → the Mac clone.
-5. The Windows session should appear in the agent sidebar. Continue it.
+1. Open Cursor. Sign in with the same account. Rules you typed in **Customize → Rules** come from the account. You do not copy those by hand.
+2. Open **Customize → Skills**. The skills listed by `scan` should be there.
+3. For a normal project: **File → Open Folder…** and choose the Mac folder of that project.
+4. For a multi-repo workplace: **File → Open Workspace from File…** and choose the `.code-workspace` file. Do not open one repo inside it if the chat was started from the workplace file.
+5. The chat you started on Windows should be in the agent list on the left. Open it and send a new message.
 
-If the list is empty, you opened a different path than the one in `path-map.json` (symlink, extra `Documents`, case). Run:
+That last step is the real test. The same conversation continues on the Mac.
 
-```bash
-python3 -m cursor_mac_migrate scan
-```
+If the list is empty, the folder you opened is not the folder written in `path-map.json`. A different spelling, an extra folder, or a shortcut (alias) counts as a different place. Run `scan` again and compare.
 
-and compare the Mac path you opened with `mac_path` in `migrate-report.json`.
+---
 
-## Python and IntelliJ specifically
+## Send me your real paths
 
-Do **not** try to reuse the Windows installs.
+If you want the next version of this file filled in with your names, paste the following. Each item says where to get it.
 
-| Thing | What to do on Mac |
-| --- | --- |
-| CPython / pyenv / conda | Install with Homebrew or pyenv. Put `which python3` in `tools.python`. |
-| `python.defaultInterpreterPath` in settings | The apply step overwrites Windows `.exe` paths with `tools.python`. Then pick the interpreter once in the Python extension. |
-| Python / Pylance extensions | `reinstall-native-extensions`. The copied Windows VSIX will not load. |
-| IntelliJ IDEA | Install the Mac `.app`. Point `tools.intellij` at it. |
-| IntelliJ Keybindings extension | Usually copied as-is (no native binary). |
-| JetBrains IDE remote / toolbox paths | Remap with a `roots` entry for `C:\\Program Files\\JetBrains` if scan still shows it. |
-
-## Multi-root workplaces
-
-A `.code-workspace` file is its own Cursor workspace. Chats belong to **that file's path**, not to the child repos.
-
-On Windows it might have been:
-
-```json
-{
-  "folders": [
-    { "path": "C:\\Users\\Alice\\dev\\api" },
-    { "path": "C:\\Users\\Alice\\dev\\web" }
-  ]
-}
-```
-
-Copy the file to the Mac (keep a stable path, for example `~/dev/platform.code-workspace`). Map it under `workspaces`. Apply rewrites the `folders` entries to the Mac repo paths. After that, opening **that file** restores the Windows sessions and `@`-mentions across those repos.
-
-Relative folders (`"path": "../api"`) are left alone. Keep the same relative layout on the Mac.
-
-## If apply reports `collision`
-
-You opened the Mac folder in Cursor before relinking. Quit Cursor and:
+1. From the Mac Terminal, the output of:
 
 ```bash
-# Example IDs come from migrate-report.json
-USER="$HOME/Library/Application Support/Cursor/User/workspaceStorage"
-mv "$USER/<mac-id>" "$USER/<mac-id>.empty-from-mac"
-# rerun apply so the Windows folder can take the Mac id
-python3 -m cursor_mac_migrate apply --map ./path-map.json
+whoami
+echo "$HOME"
+which python3
 ```
 
-## Rollback
+2. From Windows PowerShell, the output of:
 
-Apply writes `~/Library/Application Support/Cursor/User.mac-migrate-backup-<timestamp>/`. The original Windows copy is also still a backup if you kept it.
+```powershell
+echo $env:USERPROFILE
+```
 
-## What this tool will not do
-
-- It will not invent Mac folders. Clone the git repos yourself.
-- It will not sync chats through the Cursor account. That is local-only.
-- It will not migrate Cloud Agent jobs; those already follow the account at [cursor.com/agents](https://cursor.com/agents).
-- It will not copy SSH keys, git credentials, or Windows-only PATH entries.
-
-## Tests
+3. The full text printed by:
 
 ```bash
-python3 -m pip install -e ".[dev]"
-python3 -m pytest
+python3 -m cursor_mac_migrate scan --write-map "$HOME/Desktop/path-map.json"
 ```
 
-## Safety notes
+4. For each project you care about, the Mac folder. In Finder, open the project folder and drag it into Terminal. Paste those dropped paths, and say which Windows path from the scan each one matches.
 
-- Always quit Cursor before `apply`. Live SQLite (`state.vscdb-wal`) corrupts if rewritten while open.
-- Work on the Mac copy. Keep the Windows `%APPDATA%\Cursor` tree untouched until a real session continues successfully.
-- Cursor's workspace ID formula can change between versions. This tool matches current VS Code/Cursor behavior: folders use `md5(fsPath + birthtimeMs)` on macOS; `.code-workspace` files use `md5(lowercase path)`.
+5. For each multi-repo workplace, drag the `.code-workspace` file into Terminal and paste that path.
+
+6. If IntelliJ is installed, drag **IntelliJ IDEA.app** from Applications into Terminal and paste that path. If it is not installed, say so.
+
+I will put those values into the guide so you are not matching examples yourself.
