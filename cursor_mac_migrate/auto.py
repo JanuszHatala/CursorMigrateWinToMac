@@ -18,10 +18,25 @@ class AutoPlan:
     mac_home: str
     python: str | None
     intellij: str | None
+    prefixes: list[tuple[str, str]] = field(default_factory=list)
     skills: list[str] = field(default_factory=list)
     ready: list[str] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
     outside_home: list[str] = field(default_factory=list)
+
+
+def translate_prefixes(windows_path: str, prefixes: list[tuple[str, str]]) -> str | None:
+    """Rewrite a Windows path using the longest matching prefix."""
+    ordered = sorted(
+        prefixes,
+        key=lambda item: len(normalize_windows_path(item[0])),
+        reverse=True,
+    )
+    for source, target in ordered:
+        rewritten = translate_home(windows_path, source, target)
+        if rewritten is not None:
+            return rewritten
+    return None
 
 
 def translate_home(windows_path: str, windows_home: str, mac_home: str) -> str | None:
@@ -47,12 +62,17 @@ def build_auto_plan(
     intellij: str | None = None,
     user_dir: Path | None = None,
     dot_cursor: Path | None = None,
+    extra_prefixes: list[tuple[str, str]] | None = None,
 ) -> AutoPlan:
     mac_home_path = str(Path(mac_home).expanduser())
     py = python or default_python()
     idea = intellij if intellij is not None else default_intellij()
+    prefixes = [(normalize_windows_path(windows_home), mac_home_path)]
+    for source, target in extra_prefixes or []:
+        prefixes.append((normalize_windows_path(source), str(Path(target).expanduser())))
+    prefixes.sort(key=lambda item: len(item[0]), reverse=True)
     path_map = PathMap(
-        roots=[RootMap(normalize_windows_path(windows_home), mac_home_path, "home")],
+        roots=[RootMap(source, target, "folder") for source, target in prefixes],
         python=py,
         intellij=idea,
         user_dir=user_dir,
@@ -64,6 +84,7 @@ def build_auto_plan(
         mac_home=mac_home_path,
         python=py,
         intellij=idea,
+        prefixes=prefixes,
         skills=[path.name for path in scan.skills],
     )
 
@@ -80,7 +101,7 @@ def build_auto_plan(
         if key in seen:
             continue
         seen.add(key)
-        mac = translate_home(native, windows_home, mac_home_path)
+        mac = translate_prefixes(native, prefixes)
         if mac is None:
             if len(native) >= 2 and native[1] == ":":
                 plan.outside_home.append(normalize_windows_path(native))

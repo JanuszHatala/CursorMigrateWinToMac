@@ -41,6 +41,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Replace every C:\\Users\\<windows name> path with the same path under your Mac home",
     )
     _add_common(auto_p)
+    auto_p.add_argument(
+        "--also",
+        action="append",
+        default=[],
+        help=r"Another folder pair, Windows=Mac. Example: C:\DevWorkspaces=/Users/jh/DevWorkspaces",
+    )
     auto_p.add_argument("--windows-home", required=True, help=r"Example: C:\Users\janusz")
     auto_p.add_argument("--mac-home", default=str(Path.home()), help="Example: /Users/jh")
     auto_p.add_argument("--python", default=None, help="Mac python3, from: which python3")
@@ -150,6 +156,14 @@ def cmd_auto(args: argparse.Namespace) -> int:
     print("Reading the copied Cursor data. This can take a minute. Nothing is printed until it finishes.")
     scan = scan_tree(user_dir, dot_cursor)
     intellij = args.intellij if args.intellij else default_intellij()
+    extra: list[tuple[str, str]] = []
+    for item in args.also:
+        if "=" not in item:
+            print("Each --also value must look like C:\\DevWorkspaces=/Users/jh/DevWorkspaces")
+            print(f"This one does not: {item}")
+            return 1
+        source, target = item.split("=", 1)
+        extra.append((source, target))
     plan = build_auto_plan(
         scan,
         args.windows_home,
@@ -158,6 +172,7 @@ def cmd_auto(args: argparse.Namespace) -> int:
         intellij=intellij,
         user_dir=user_dir,
         dot_cursor=dot_cursor,
+        extra_prefixes=extra,
     )
     map_path = desktop / "path-map.json"
     map_path.write_text(json.dumps(dump_path_map(plan.path_map), indent=2) + "\n", encoding="utf-8")
@@ -175,8 +190,9 @@ def cmd_auto(args: argparse.Namespace) -> int:
     )
 
     print()
-    print("Every Windows path under your user folder is rewritten like this:")
-    print(f"  {plan.windows_home}\\anything  ->  {plan.mac_home}/anything")
+    print("These folder prefixes are rewritten everywhere:")
+    for source, target in plan.prefixes:
+        print(f"  {source}\\...  ->  {target}/...")
     print()
     print(f"Python the tool will write into settings: {plan.python or 'not found'}")
     if plan.intellij:
@@ -188,7 +204,7 @@ def cmd_auto(args: argparse.Namespace) -> int:
     print(f"Skills already on this Mac: {len(plan.skills)}")
     print(f"Projects whose Mac folder already exists: {len(plan.ready)}")
     print(f"Projects not copied to the matching Mac folder yet: {len(plan.missing)}")
-    print(f"Projects that were not under {plan.windows_home}: {len(plan.outside_home)}")
+    print(f"Projects that were not under any prefix above: {len(plan.outside_home)}")
     print()
     print("The long lists are files on your Desktop, not in this window:")
     print(f"  {desktop / 'cursor-migrate-ready.txt'}")

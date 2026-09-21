@@ -1,37 +1,43 @@
 # Move Cursor from the Windows PC to this Mac
 
-Your Mac user is `jh`. Your Windows user is `janusz`. Python on this Mac is `/opt/homebrew/bin/python3`.
+The project folders on Windows are under `C:\DevWorkspaces`, not under `C:\Users\janusz`. On the Mac that same tree is `/Users/jh/DevWorkspaces`.
 
-The tool rewrites every Windows path that starts with `C:\Users\janusz` so the same ending is used under `/Users/jh`.
+So `C:\DevWorkspaces\timebook` becomes `/Users/jh/DevWorkspaces/timebook`.
+And `C:\DevWorkspaces\timebook-jh\automate-mvn-upgrade\repos\...` becomes `/Users/jh/DevWorkspaces/timebook-jh/automate-mvn-upgrade/repos/...`.
 
-Example: `C:\Users\janusz\Projects\api` becomes `/Users/jh/Projects/api`.
+Anything that really did live under `C:\Users\janusz` is rewritten under `/Users/jh`. Python `.exe` paths become `/opt/homebrew/bin/python3`.
 
-You do not paste project folders. You do not edit a list. One command walks the copied Cursor files.
+## Where the tool is
 
-This only works when the project on the Mac is in the same place relative to your home folder. If Windows had the project in `C:\Users\janusz\Projects\api`, the Mac copy must be `/Users/jh/Projects/api`. Projects that are not there are written to a short file on the Desktop. They are not printed as a flood in Terminal.
+It is not on the Windows PC. There is no `C:\` folder for it. It was written in this chat's project, on a cloud machine, not on your disk.
 
-## Do this
+The folder you need contains these names:
 
-1. Quit Cursor. Click **Cursor** in the top menu bar, then **Quit Cursor**.
+- `migrate.sh`
+- `README.md`
+- `cursor_mac_migrate` (a folder)
+- `pyproject.toml`
 
-2. Open Terminal. Press the **Command** key and the **Space** bar together. Type `Terminal`. Press Return.
+Copy that whole folder, not one file inside it. Put the copy on the Mac Desktop.
 
-3. Go to the folder that contains `migrate.sh`. If you put that folder on the Desktop and it is named `cursor-mac-migrate`, paste:
+How to get it there: in this chat, download or export the project files (the file list for this agent). If you get a zip, unzip it. Move the unzipped folder onto the Mac Desktop. In Finder it should sit on the Desktop, and inside it you must see `migrate.sh`.
+
+## On the Mac
+
+1. Quit Cursor. Menu bar: **Cursor → Quit Cursor**.
+
+2. Press **Command** and **Space**, type `Terminal`, press Return.
+
+3. Go into the folder you just put on the Desktop. If Finder shows that folder as `cursor-mac-migrate`:
 
 ```bash
 cd "$HOME/Desktop/cursor-mac-migrate"
 ls
 ```
 
-`ls` must show `migrate.sh`. If the folder has a different name, use that name instead of `cursor-mac-migrate`.
+`ls` must print `migrate.sh`. If the folder name is different, use the name you see on the Desktop instead of `cursor-mac-migrate`.
 
-4. Turn on the tool (you already did this once if a prompt starting with `(.venv)` is showing):
-
-```bash
-source .venv/bin/activate
-```
-
-If that says no such file, paste this once:
+4. Paste this once:
 
 ```bash
 python3 -m venv .venv
@@ -39,32 +45,18 @@ source .venv/bin/activate
 python3 -m pip install -e ".[dev]"
 ```
 
-5. Preview. This does not change files. It can sit quietly for a minute, then print a short summary:
+5. Preview. It does not change files. It stays quiet, then prints a short summary:
 
 ```bash
-python3 -m cursor_mac_migrate auto --windows-home 'C:\Users\janusz' --mac-home /Users/jh
+python3 -m cursor_mac_migrate auto --windows-home 'C:\Users\janusz' --mac-home /Users/jh --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces'
 ```
 
-6. Read the three files on the Desktop (double-click them, they open in TextEdit):
+6. On the Desktop, open `cursor-migrate-missing.txt` if the summary says some projects are missing. Those are Windows paths whose Mac folder was not found at the matching place under `/Users/jh/DevWorkspaces`. Also open `cursor-migrate-outside-home.txt` if it is not empty, and send me that file. Those paths are outside both `C:\DevWorkspaces` and `C:\Users\janusz`.
 
-- `cursor-migrate-ready.txt` lists projects that already exist at the matching Mac path. Those chats can be attached.
-- `cursor-migrate-missing.txt` lists projects whose Mac folder is not at the matching path. Copy or clone that project so `C:\Users\janusz\some\folder` exists as `/Users/jh/some/folder`, then run the command again.
-- `cursor-migrate-outside-home.txt` lists anything that was not under `C:\Users\janusz` (another drive, for example `D:\`). Send me that file if it is not empty. The home-folder command cannot guess those.
-
-7. Apply. Cursor must still be quit.
+7. Apply. Cursor must still be quit:
 
 ```bash
-python3 -m cursor_mac_migrate auto --windows-home 'C:\Users\janusz' --mac-home /Users/jh --apply
+python3 -m cursor_mac_migrate auto --windows-home 'C:\Users\janusz' --mac-home /Users/jh --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces' --apply
 ```
 
-Python settings that pointed at `python.exe` are changed to `/opt/homebrew/bin/python3`.
-
-If IntelliJ IDEA is installed in the Applications folder, the tool finds `IntelliJ IDEA.app` by itself and replaces `idea64.exe`. If the summary says IntelliJ was not found, install it, then run the apply command again. You do not type the IntelliJ path.
-
-8. Open Cursor. Use **File → Open Folder** for a project, or **File → Open Workspace from File** for a file whose name ends in `.code-workspace`. The chat from Windows should be in the list on the left.
-
-Skills copied into `/Users/jh/.cursor/skills` are already on the Mac. The summary prints how many it found. Open **Customize → Skills** to see them.
-
-## If Terminal floods again
-
-Do not use `scan`. Use the `auto` command above. It writes the long lists to the Desktop and prints only counts.
+8. Open Cursor. **File → Open Folder** and choose a folder under `/Users/jh/DevWorkspaces`, or **File → Open Workspace from File** for a `.code-workspace`. The Windows chat should be in the list.
