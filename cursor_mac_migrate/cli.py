@@ -9,7 +9,12 @@ from pathlib import Path
 
 from cursor_mac_migrate import __version__
 from cursor_mac_migrate.apply import apply_map, write_report
-from cursor_mac_migrate.auto import build_auto_plan
+from cursor_mac_migrate.auto import (
+    build_auto_plan,
+    load_pair_file,
+    load_path_list,
+    path_map_for_apply,
+)
 from cursor_mac_migrate.detect import proposed_map, scan_tree
 from cursor_mac_migrate.extensions import cursor_cli, iter_extensions, reinstall
 from cursor_mac_migrate.lock import assert_cursor_closed
@@ -51,7 +56,9 @@ def main(argv: list[str] | None = None) -> int:
     auto_p.add_argument("--mac-home", default=str(Path.home()), help="Example: /Users/jh")
     auto_p.add_argument("--python", default=None, help="Mac python3, from: which python3")
     auto_p.add_argument("--intellij", default=None, help="Path ending in .app, or omit to auto-detect")
-    auto_p.add_argument("--apply", action="store_true", help="Rewrite files. Without this, only a preview.")
+    auto_p.add_argument("--apply", action="store_true", help="Attach exact matches and accepted renames only")
+    auto_p.add_argument("--renames", type=Path, default=None, help="Edited cursor-migrate-rename.txt")
+    auto_p.add_argument("--drop", type=Path, default=None, help="Windows paths to leave untouched")
     auto_p.add_argument("--allow-running", action="store_true")
 
     scan_p = sub.add_parser("scan", help="Find Windows paths still stored in the copied profile")
@@ -180,44 +187,80 @@ def cmd_auto(args: argparse.Namespace) -> int:
         "\n".join(plan.ready) + ("\n" if plan.ready else ""),
         encoding="utf-8",
     )
+    rename_lines = [
+        "# Suggested renames. Copy a line into cursor-migrate-rename.txt to accept it.",
+        "# Example: C:\\DevWorkspaces\\some\\wsgateway=/Users/jh/DevWorkspaces/some/ws-gateway",
+        *[f"{source}={target}" for source, target in plan.rename_pairs],
+    ]
+    (desktop / "cursor-migrate-rename-suggested.txt").write_text(
+        "\n".join(rename_lines) + "\n",
+        encoding="utf-8",
+    )
+    rename_file = desktop / "cursor-migrate-rename.txt"
+    if not rename_file.exists():
+        rename_file.write_text(
+            "# Accepted renames. One Windows path=Mac path per line.\n",
+            encoding="utf-8",
+        )
     (desktop / "cursor-migrate-missing.txt").write_text(
         "\n".join(plan.missing) + ("\n" if plan.missing else ""),
+        encoding="utf-8",
+    )
+    (desktop / "cursor-migrate-keep.txt").write_text(
+        "\n".join(
+            [
+                "# Left untouched. Copy a [not-copied] folder to the Mac path, then run the preview again.",
+                "# [worktree] and [cursor-internal] were not copied. Leave them here until you decide.",
+                *plan.keep,
+            ]
+        )
+        + "\n",
         encoding="utf-8",
     )
     (desktop / "cursor-migrate-outside-home.txt").write_text(
         "\n".join(plan.outside_home) + ("\n" if plan.outside_home else ""),
         encoding="utf-8",
     )
+    if not (desktop / "cursor-migrate-drop.txt").exists():
+        (desktop / "cursor-migrate-drop.txt").write_text(
+            "# One Windows path per line. These chats are left unchanged.\n",
+            encoding="utf-8",
+        )
 
     print()
-    print("These folder prefixes are rewritten everywhere:")
-    for source, target in plan.prefixes:
-        print(f"  {source}\\...  ->  {target}/...")
+    print("Nothing was changed in Cursor yet." if not args.apply else "Applying exact matches only.")
+    print(f"Exact Mac folders found: {len(plan.ready)}")
+    print(f"Different folder name, please check: {len(plan.rename_pairs)}")
+    print(f"Not copied, left unchanged: {len(plan.missing)}")
+    print(f"Worktrees and Cursor-internal paths, left unchanged: {len(plan.keep) - len(plan.missing)}")
+    print(f"Outside C:\\Users\\janusz and the --also folders: {len(plan.outside_home)}")
     print()
-    print(f"Python the tool will write into settings: {plan.python or 'not found'}")
-    if plan.intellij:
-        print(f"IntelliJ the tool will write into settings: {plan.intellij}")
-    else:
-        print("IntelliJ was not found in /Applications. Project paths are still rewritten.")
-        print("After you install IntelliJ, drag IntelliJ IDEA.app onto Terminal and rerun with --intellij and that path.")
-    print()
-    print(f"Skills already on this Mac: {len(plan.skills)}")
-    print(f"Projects whose Mac folder already exists: {len(plan.ready)}")
-    print(f"Projects not copied to the matching Mac folder yet: {len(plan.missing)}")
-    print(f"Projects that were not under any prefix above: {len(plan.outside_home)}")
-    print()
-    print("The long lists are files on your Desktop, not in this window:")
+    print("On the Desktop:")
     print(f"  {desktop / 'cursor-migrate-ready.txt'}")
-    print(f"  {desktop / 'cursor-migrate-missing.txt'}")
+    print(f"  {desktop / 'cursor-migrate-rename-suggested.txt'}")
+    print(f"  {desktop / 'cursor-migrate-rename.txt'}")
+    print(f"  {desktop / 'cursor-migrate-keep.txt'}")
+    print(f"  {desktop / 'cursor-migrate-drop.txt'}")
     print(f"  {desktop / 'cursor-migrate-outside-home.txt'}")
 
     if not args.apply:
         print()
-        print("No files were changed. Quit Cursor, then run the same command again with --apply at the end.")
+        print("Edit cursor-migrate-rename.txt and cursor-migrate-drop.txt on the Desktop.")
+        print("Then run the same command again with --renames, --drop, and --apply.")
+        print("Projects in cursor-migrate-keep.txt are not touched.")
         return 0
 
+    renames = load_pair_file(args.renames) if args.renames else []
+    drops = load_path_list(args.drop) if args.drop else []
+    apply_plan = path_map_for_apply(plan, renames, drops)
+    dropped_renames = [source for source, target in renames if not Path(target).exists()]
+    if dropped_renames:
+        print("These rename targets do not exist, so they were skipped:")
+        for source in dropped_renames:
+            print(f"  {source}")
+
     assert_cursor_closed(allow_running=args.allow_running)
-    report = apply_map(plan.path_map, dry_run=False, skip_missing=True)
+    report = apply_map(apply_plan, dry_run=False, skip_missing=True)
     report_path = desktop / "cursor-migrate-report.json"
     write_report(report, report_path)
     attached = [item for item in report.relink.items if item.status in {"renamed", "unchanged-id"}]

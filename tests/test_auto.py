@@ -1,4 +1,4 @@
-from cursor_mac_migrate.auto import build_auto_plan, translate_home
+from cursor_mac_migrate.auto import build_auto_plan, path_map_for_apply, translate_home
 from cursor_mac_migrate.detect import ScanResult
 
 
@@ -42,6 +42,34 @@ def test_devworkspaces_is_rewritten_even_though_it_is_outside_the_user_folder(tm
     assert len(plan.missing) == 1
     assert "automate-mvn-upgrade/repos/demo" in plan.missing[0]
     assert plan.outside_home == []
+
+
+def test_wsgateway_is_suggested_as_ws_gateway_and_not_applied_by_default(tmp_path):
+    dev = tmp_path / "DevWorkspaces"
+    (dev / "ws-gateway").mkdir(parents=True)
+    scan = ScanResult()
+    scan.workspace_uris = [
+        ("abc", "folder", "file:///c%3A/DevWorkspaces/wsgateway"),
+        ("wt", "folder", "file:///c%3A/DevWorkspaces/timebook/.cursor/worktrees/abc"),
+        ("roam", "folder", "file:///c%3A/Users/janusz/AppData/Roaming/Cursor/Workspaces/abc"),
+    ]
+    plan = build_auto_plan(
+        scan,
+        r"C:\Users\janusz",
+        "/Users/jh",
+        python="/opt/homebrew/bin/python3",
+        intellij=None,
+        extra_prefixes=[(r"C:\DevWorkspaces", str(dev))],
+    )
+    assert plan.ready_pairs == []
+    assert plan.rename_pairs == [(r"C:\DevWorkspaces\wsgateway", str(dev / "ws-gateway"))]
+    assert any(line.startswith("[worktree]") for line in plan.keep)
+    assert any(line.startswith("[cursor-internal]") for line in plan.keep)
+    accepted = path_map_for_apply(plan, plan.rename_pairs, [])
+    assert any(root.mac.endswith("ws-gateway") for root in accepted.roots)
+    assert all(not root.windows.lower().startswith(r"c:\devworkspaces") or root.windows.lower().endswith("wsgateway") for root in accepted.roots)
+    blocked = path_map_for_apply(plan, plan.rename_pairs, [r"C:\DevWorkspaces\wsgateway"])
+    assert blocked.roots == []
 
 
 def test_auto_plan_uses_one_home_prefix(tmp_path):

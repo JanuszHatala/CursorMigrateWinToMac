@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -21,8 +23,129 @@ class AutoPlan:
     prefixes: list[tuple[str, str]] = field(default_factory=list)
     skills: list[str] = field(default_factory=list)
     ready: list[str] = field(default_factory=list)
+    ready_pairs: list[tuple[str, str]] = field(default_factory=list)
+    rename_pairs: list[tuple[str, str]] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
+    keep: list[str] = field(default_factory=list)
     outside_home: list[str] = field(default_factory=list)
+
+
+def special_keep_reason(windows_path: str) -> str | None:
+    """Paths the user usually did not copy, and should not be rewritten yet."""
+    folded = windows_path.replace("/", "\\").lower()
+    if "\\.cursor\\worktrees\\" in folded or "\\.git\\worktrees\\" in folded:
+        return "worktree"
+    if "\\appdata\\roaming\\cursor\\" in folded or "\\cursor\\workspaces\\" in folded:
+        return "cursor-internal"
+    return None
+
+
+def compact_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def index_directory_names(roots: list[Path]) -> dict[str, list[str]]:
+    """Map a loose folder name to real Mac directories under the copied trees."""
+    skip = {".git", "node_modules", "target", ".venv", "venv", "dist", "build"}
+    found: dict[str, list[str]] = {}
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for dirpath, dirnames, _filenames in os.walk(root):
+            current = Path(dirpath)
+            try:
+                depth = len(current.relative_to(root).parts)
+            except ValueError:
+                depth = 0
+            if depth > 8:
+                dirnames.clear()
+                continue
+            dirnames[:] = [name for name in dirnames if name not in skip and not name.startswith(".")]
+            for name in dirnames:
+                key = compact_name(name)
+                if not key:
+                    continue
+                found.setdefault(key, [])
+                path = str(current / name)
+                if path not in found[key]:
+                    found[key].append(path)
+    return found
+
+
+def suggest_renamed_folder(windows_path: str, translated_mac: str, index: dict[str, list[str]]) -> str | None:
+    key = compact_name(Path(windows_path.replace("\\", "/")).name)
+    if not key:
+        return None
+    candidates = [path for path in index.get(key, []) if path != translated_mac]
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
+def load_pair_file(path: Path) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    if not path.exists():
+        return pairs
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        left, right = line.split("=", 1)
+        left, right = left.strip(), right.strip()
+        if left and right:
+            pairs.append((left, right))
+    return pairs
+
+
+def load_path_list(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+    values: list[str] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        values.append(line)
+    return values
+
+
+def _is_dropped(windows_path: str, drop_prefixes: list[str]) -> bool:
+    folded = normalize_windows_path(windows_path).lower()
+    for prefix in drop_prefixes:
+        base = normalize_windows_path(prefix).lower()
+        if folded == base or folded.startswith(base + "\\"):
+            return True
+    return False
+
+
+def path_map_for_apply(
+    plan: AutoPlan,
+    renames: list[tuple[str, str]],
+    drop_prefixes: list[str],
+) -> PathMap:
+    """Only exact matches and accepted renames. Missing projects stay as they are."""
+    roots: list[RootMap] = []
+    seen: set[str] = set()
+    for source, target in list(plan.ready_pairs) + [(normalize_windows_path(s), t) for s, t in renames]:
+        source_n = normalize_windows_path(source)
+        if _is_dropped(source_n, drop_prefixes):
+            continue
+        if source_n.lower() in seen:
+            continue
+        if not Path(target).exists():
+            continue
+        seen.add(source_n.lower())
+        kind = "workspace" if source_n.lower().endswith(".code-workspace") else "folder"
+        roots.append(RootMap(source_n, target, kind))
+    return PathMap(
+        roots=roots,
+        python=plan.python,
+        intellij=plan.intellij,
+        user_dir=plan.path_map.user_dir,
+        dot_cursor=plan.path_map.dot_cursor,
+    )
 
 
 def translate_prefixes(windows_path: str, prefixes: list[tuple[str, str]]) -> str | None:
@@ -63,6 +186,7 @@ def build_auto_plan(
     user_dir: Path | None = None,
     dot_cursor: Path | None = None,
     extra_prefixes: list[tuple[str, str]] | None = None,
+    search_roots: list[Path] | None = None,
 ) -> AutoPlan:
     mac_home_path = str(Path(mac_home).expanduser())
     py = python or default_python()
@@ -87,6 +211,9 @@ def build_auto_plan(
         prefixes=prefixes,
         skills=[path.name for path in scan.skills],
     )
+    if search_roots is None:
+        search_roots = [Path(target) for _source, target in (extra_prefixes or [])]
+    name_index = index_directory_names(search_roots)
 
     seen: set[str] = set()
     entries: list[tuple[str, str]] = []
@@ -108,13 +235,20 @@ def build_auto_plan(
             else:
                 plan.outside_home.append(native)
             continue
-        target = Path(mac)
-        exists = target.exists()
-        line = f"{native}  ->  {mac}"
-        if exists:
-            plan.ready.append(line)
+        reason = special_keep_reason(native)
+        if reason:
+            plan.keep.append(f"[{reason}] {native}  ->  {mac}")
+            continue
+        if Path(mac).exists():
+            plan.ready.append(f"{native}  ->  {mac}")
+            plan.ready_pairs.append((normalize_windows_path(native), mac))
             if kind == "workspace" or native.lower().endswith(".code-workspace"):
                 path_map.roots.append(RootMap(normalize_windows_path(native), mac, "workspace"))
-        else:
-            plan.missing.append(line)
+            continue
+        renamed = suggest_renamed_folder(native, mac, name_index)
+        if renamed:
+            plan.rename_pairs.append((normalize_windows_path(native), renamed))
+            continue
+        plan.missing.append(f"{native}  ->  {mac}")
+        plan.keep.append(f"[not-copied] {native}  ->  {mac}")
     return plan

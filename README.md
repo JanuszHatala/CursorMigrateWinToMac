@@ -53,12 +53,17 @@ python3 -m pip install -e ".[dev]"
 python3 -m cursor_mac_migrate auto --windows-home 'C:\Users\janusz' --mac-home /Users/jh --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces'
 ```
 
-That does not change Cursor's files. It writes short lists on the Desktop. If `cursor-migrate-outside-home.txt` is not empty, send it to me.
+That preview does not change Cursor. On the Desktop it writes:
 
-When the summary looks right, Cursor still quit, paste the same `auto` line again with `--apply` added at the end:
+- `cursor-migrate-ready.txt`: same folder name on the Mac. Safe to attach.
+- `cursor-migrate-rename-suggested.txt`: different folder name, such as `wsgateway` and `ws-gateway`. Copy the lines you want into `cursor-migrate-rename.txt`.
+- `cursor-migrate-keep.txt`: not copied, worktrees, and `AppData\Roaming\Cursor\Workspaces`. Left unchanged.
+- `cursor-migrate-drop.txt`: one Windows path per line for chats you want to abandon. Also left unchanged.
+
+Do not add `--apply` by itself. After you edit the rename and drop files, Cursor still quit:
 
 ```bash
-python3 -m cursor_mac_migrate auto --windows-home 'C:\Users\janusz' --mac-home /Users/jh --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces' --apply
+python3 -m cursor_mac_migrate auto --windows-home 'C:\Users\janusz' --mac-home /Users/jh --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces' --renames "$HOME/Desktop/cursor-migrate-rename.txt" --drop "$HOME/Desktop/cursor-migrate-drop.txt" --apply
 ```
 
-Open Cursor. **File → Open Folder**, and choose a folder under `/Users/jh/DevWorkspaces`. The Windows chat for that project should be in the list.
+Only the ready list and the accepted renames are attached. To keep a missing repo, copy it to the Mac path on the right in `cursor-migrate-keep.txt`, run the preview again, then `--apply` again.
