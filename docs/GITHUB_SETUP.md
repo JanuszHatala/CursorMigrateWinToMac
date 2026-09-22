@@ -26,12 +26,29 @@ Git will prompt for username and password; use the PAT as the password.
 
 ## 2. First push from this project
 
-From the repository root (branch `main` should contain the tool, tests, and `.github/workflows/ci.yml`):
+From the repository root (branch `main` should contain the tool, tests, and `.github/workflows/ci.yml`).
+
+**Option A — push `main` directly (simplest for an empty repo)**
 
 ```bash
 git remote add github https://github.com/JanuszHatala/CursorMigrateWinToMac.git 2>/dev/null || true
 git push -u github main
 ```
+
+Wait for the **CI** workflow on `main` to finish, then enable branch protection (step 3).
+
+**Option B — first change lands via pull request**
+
+```bash
+git remote add github https://github.com/JanuszHatala/CursorMigrateWinToMac.git 2>/dev/null || true
+git checkout -b cursor/initial-import-7cee
+git push -u github cursor/initial-import-7cee
+gh pr create --base main --head cursor/initial-import-7cee --title "Initial import" --body "Migration tool, tests, and CI."
+gh pr checks --watch
+gh pr merge --merge
+```
+
+If `main` does not exist on GitHub yet, create the default branch from the PR merge (GitHub will create `main` when the PR merges).
 
 Optional: push the Cursor Cloud remote too if you use it:
 
