@@ -44,12 +44,12 @@ def test_devworkspaces_is_rewritten_even_though_it_is_outside_the_user_folder(tm
     assert plan.outside_home == []
 
 
-def test_wsgateway_is_suggested_as_ws_gateway_and_not_applied_by_default(tmp_path):
+def test_syncvault_rename_suggested_when_mac_folder_uses_hyphens(tmp_path):
     dev = tmp_path / "DevWorkspaces"
-    (dev / "ws-gateway").mkdir(parents=True)
+    (dev / "sync-vault").mkdir(parents=True)
     scan = ScanResult()
     scan.workspace_uris = [
-        ("abc", "folder", "file:///c%3A/DevWorkspaces/wsgateway"),
+        ("abc", "folder", "file:///c%3A/DevWorkspaces/syncvault"),
         ("wt", "folder", "file:///c%3A/DevWorkspaces/acme/.cursor/worktrees/abc"),
         ("roam", "folder", "file:///c%3A/Users/janusz/AppData/Roaming/Cursor/Workspaces/abc"),
     ]
@@ -62,13 +62,17 @@ def test_wsgateway_is_suggested_as_ws_gateway_and_not_applied_by_default(tmp_pat
         extra_prefixes=[(r"C:\DevWorkspaces", str(dev))],
     )
     assert plan.ready_pairs == []
-    assert plan.rename_pairs == [(r"C:\DevWorkspaces\wsgateway", str(dev / "ws-gateway"))]
+    assert plan.rename_pairs == [(r"C:\DevWorkspaces\syncvault", str(dev / "sync-vault"))]
     assert any(line.startswith("[worktree]") for line in plan.keep)
     assert any(line.startswith("[cursor-internal]") for line in plan.keep)
     accepted = path_map_for_apply(plan, plan.rename_pairs, [])
-    assert any(root.mac.endswith("ws-gateway") for root in accepted.roots)
-    assert all(not root.windows.lower().startswith(r"c:\devworkspaces") or root.windows.lower().endswith("wsgateway") for root in accepted.roots)
-    blocked = path_map_for_apply(plan, plan.rename_pairs, [r"C:\DevWorkspaces\wsgateway"])
+    assert any(root.mac.endswith("sync-vault") for root in accepted.roots)
+    assert all(
+        not root.windows.lower().startswith(r"c:\devworkspaces")
+        or root.windows.lower().endswith("syncvault")
+        for root in accepted.roots
+    )
+    blocked = path_map_for_apply(plan, plan.rename_pairs, [r"C:\DevWorkspaces\syncvault"])
     assert blocked.roots == []
 
 

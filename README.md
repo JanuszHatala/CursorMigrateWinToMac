@@ -141,7 +141,7 @@ This scans copied SQLite databases and config files, then writes reports on the 
 
 **Manual editing between preview and apply**
 
-1. Open `cursor-migrate-rename-suggested.txt` and copy only the lines you agree with into `cursor-migrate-rename.txt` (create the file if needed). Add any paths the tool did not guess (Google Drive, `wsgateway` → `ws-gateway`, etc.).
+1. Open `cursor-migrate-rename-suggested.txt` and copy only the lines you agree with into `cursor-migrate-rename.txt` (create the file if needed). Add any paths the tool did not guess (Google Drive, `syncvault` → `sync-vault`, etc.).
 2. Optionally add Windows paths to abandon in `cursor-migrate-drop.txt` (one full path per line).
 3. Do **not** edit `cursor-migrate-keep.txt`; re-run preview after you copy more repos to the Mac.
 4. Run **Step 5: Apply** only after you are happy with rename/drop files.
@@ -166,10 +166,10 @@ Report files:
 
 ### Examples for `cursor-migrate-rename.txt`
 
-**Different folder name** (`wsgateway` on Windows, `ws-gateway` on Mac):
+**Different folder name** (`syncvault` on Windows, `sync-vault` on Mac):
 
 ```text
-C:\DevWorkspaces\acme\wsgateway=/Users/jh/DevWorkspaces/acme/ws-gateway
+C:\DevWorkspaces\acme\syncvault=/Users/jh/DevWorkspaces/acme/sync-vault
 ```
 
 **Google Drive** (Mac client uses `My Drive`):
@@ -181,7 +181,7 @@ C:\Users\janusz\Google Drive\DEVs\AI\books&publications=/Users/jh/Google Drive/M
 **Moved under another parent** (only if you really open the project from the right-hand path):
 
 ```text
-C:\DevWorkspaces\acme\pricing-engine=/Users/jh/DevWorkspaces/acme/helm-charts/pricing-engine
+C:\DevWorkspaces\acme\meterforge=/Users/jh/DevWorkspaces/acme/deploy-bundles/meterforge
 ```
 
 Do **not** copy rename lines that point at old backups (`Acme-old`, `acme-copy`) unless you still use those folders.
@@ -237,7 +237,7 @@ python3 -m cursor_mac_migrate mac-cmd-keybindings
 
 1. Start Cursor (signed in).
 2. Open **Customize → Skills** and confirm skills under `~/.cursor/skills` should appear.
-3. **Single repo:** **File → Open Folder** → e.g. `/Users/jh/DevWorkspaces/acme/gateway`.
+3. **Single repo:** **File → Open Folder** → e.g. `/Users/jh/DevWorkspaces/acme/radar-app`.
 4. **Multi-root workplace:** **File → Open Workspace from File…** → choose the `.code-workspace` file on the Mac.
 
 The Windows agent session for that workspace should show in the sidebar. If not, you opened a different path than the one in `ready` / `rename` (symlink, typo, or wrong parent).
@@ -270,7 +270,7 @@ Lower-level commands (`scan`, `check-map`, `apply --map path-map.json`) still ex
 | --- | --- |
 | Huge Terminal scroll from `scan` | Use `auto` instead; lists go to Desktop files. |
 | Many lines in `missing` / `keep` | Copy repos to the Mac path on the right, or add `cursor-migrate-rename.txt` lines, preview again, apply again. |
-| `wsgateway` not in rename-suggested | Add the `wsgateway` → `ws-gateway` line manually if the Mac folder exists. |
+| `syncvault` not in rename-suggested | Add the `syncvault` → `sync-vault` line manually if the Mac folder exists. |
 | `config` vs `ws-config` | `acme\config` in **ready** is the normal repo folder; `worktrees\config\...` in **keep** is a worktree, not a rename of `config`. |
 | Apply blocked by CursorUIViewService | Use `--allow-running` (editor is already quit). |
 | Empty chat list after open | Path mismatch; run preview again and compare with the folder you opened. |
