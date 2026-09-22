@@ -426,7 +426,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
         print("  It is not printed here.")
         status = 1
     else:
-        print("  none — path rewrite looks complete.")
+        print("  none - path rewrite looks complete.")
         status = 0
     print()
     native = [ext for ext in iter_extensions(dot_cursor) if ext.needs_reinstall]

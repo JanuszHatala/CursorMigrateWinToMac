@@ -28,7 +28,7 @@ Git will prompt for username and password; use the PAT as the password.
 
 From the repository root (branch `main` should contain the tool, tests, and `.github/workflows/ci.yml`).
 
-**Option A — push `main` directly (simplest for an empty repo)**
+**Option A: push `main` directly (simplest for an empty repo)**
 
 ```bash
 git remote add github https://github.com/JanuszHatala/CursorMigrateWinToMac.git 2>/dev/null || true
@@ -37,7 +37,7 @@ git push -u github main
 
 Wait for the **CI** workflow on `main` to finish, then enable branch protection (step 3).
 
-**Option B — first change lands via pull request**
+**Option B: first change lands via pull request**
 
 ```bash
 git remote add github https://github.com/JanuszHatala/CursorMigrateWinToMac.git 2>/dev/null || true

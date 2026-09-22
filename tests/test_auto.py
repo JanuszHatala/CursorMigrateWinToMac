@@ -19,15 +19,15 @@ def test_translate_janusz_home_to_jh():
 
 
 def test_devworkspaces_is_rewritten_even_though_it_is_outside_the_user_folder(tmp_path):
-    mac_repo = tmp_path / "DevWorkspaces" / "timebook"
+    mac_repo = tmp_path / "DevWorkspaces" / "acme"
     mac_repo.mkdir(parents=True)
     scan = ScanResult()
     scan.workspace_uris = [
-        ("abc", "folder", "file:///c%3A/DevWorkspaces/timebook"),
+        ("abc", "folder", "file:///c%3A/DevWorkspaces/acme"),
         (
             "def",
             "folder",
-            "file:///c%3A/DevWorkspaces/timebook-jh/automate-mvn-upgrade/repos/demo",
+            "file:///c%3A/DevWorkspaces/acme-lab/automate-mvn-upgrade/repos/demo",
         ),
     ]
     plan = build_auto_plan(
@@ -38,7 +38,7 @@ def test_devworkspaces_is_rewritten_even_though_it_is_outside_the_user_folder(tm
         intellij=None,
         extra_prefixes=[(r"C:\DevWorkspaces", str(tmp_path / "DevWorkspaces"))],
     )
-    assert any(line.endswith(str(mac_repo)) or "/DevWorkspaces/timebook" in line for line in plan.ready)
+    assert any(line.endswith(str(mac_repo)) or "/DevWorkspaces/acme" in line for line in plan.ready)
     assert len(plan.missing) == 1
     assert "automate-mvn-upgrade/repos/demo" in plan.missing[0]
     assert plan.outside_home == []
@@ -50,7 +50,7 @@ def test_wsgateway_is_suggested_as_ws_gateway_and_not_applied_by_default(tmp_pat
     scan = ScanResult()
     scan.workspace_uris = [
         ("abc", "folder", "file:///c%3A/DevWorkspaces/wsgateway"),
-        ("wt", "folder", "file:///c%3A/DevWorkspaces/timebook/.cursor/worktrees/abc"),
+        ("wt", "folder", "file:///c%3A/DevWorkspaces/acme/.cursor/worktrees/abc"),
         ("roam", "folder", "file:///c%3A/Users/janusz/AppData/Roaming/Cursor/Workspaces/abc"),
     ]
     plan = build_auto_plan(
