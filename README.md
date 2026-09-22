@@ -1,8 +1,8 @@
 # CursorMigrateWinToMac
 
-Relink a **Cursor profile copied from Windows** onto **macOS** so agent chats, skills, settings paths, and multi-root workplaces point at the folders you actually use on the Mac.
+Point a Cursor profile you copied from Windows at the folders you use on macOS: agent threads, skills, settings, and multi-root workspaces.
 
-Cursor does **not** sync local chat history through your account. After you copy `%APPDATA%\Cursor` and `%USERPROFILE%\.cursor`, paths and workspace IDs still refer to Windows locations until you run this tool.
+Cursor does not sync local chat history with your account. Once `%APPDATA%\Cursor` and `%USERPROFILE%\.cursor` are on the Mac, Windows paths and workspace IDs are still wrong until you run this tool.
 
 [![CI](https://github.com/JanuszHatala/CursorMigrateWinToMac/actions/workflows/ci.yml/badge.svg)](https://github.com/JanuszHatala/CursorMigrateWinToMac/actions/workflows/ci.yml)
 
@@ -14,10 +14,10 @@ Cursor does **not** sync local chat history through your account. After you copy
 | Cursor home config (skills, MCP, extensions) | `%USERPROFILE%\.cursor` | `~/.cursor` |
 | Your repositories | Often **not** under the user profile | Same layout you want on the Mac |
 
-Example layout (Janusz / `jh`):
+Example paths (Windows user `janusz`, Mac home `/Users/jh`):
 
-- Windows projects: `C:\DevWorkspaces\timebook\...`
-- Mac projects: `/Users/jh/DevWorkspaces/timebook/...`
+- Windows projects: `C:\DevWorkspaces\acme\...`
+- Mac projects: `/Users/jh/DevWorkspaces/acme/...`
 - Windows user folder: `C:\Users\janusz` → Mac: `/Users/jh`
 
 Sign in to Cursor on the Mac with the same account so **User Rules** in Customize → Rules sync. Chats and workspace storage are fixed by this tool, not by login.
@@ -25,11 +25,11 @@ Sign in to Cursor on the Mac with the same account so **User Rules** in Customiz
 ## Migration overview
 
 ```text
-Windows                          Mac (before tool)              Mac (after apply)
-────────                         ───────────────              ─────────────────
-%APPDATA%\Cursor\User     ──copy──►  ~/Library/.../Cursor/User   paths + workspace IDs rewritten
-%USERPROFILE%\.cursor     ──copy──►  ~/.cursor                   skills/MCP paths rewritten
-C:\DevWorkspaces\...      ──copy──►  ~/DevWorkspaces/...         chats attached where folders exist
+Windows                         Mac (copy first)                After apply
+---------------------------     ---------------------------     ---------------------------
+%APPDATA%\Cursor\User         ~/Library/.../Cursor/User       paths + workspace IDs updated
+%USERPROFILE%\.cursor          ~/.cursor                       skills/MCP paths updated
+C:\DevWorkspaces\...           ~/DevWorkspaces/...             chats wired where folders exist
 ```
 
 1. **On Windows:** quit Cursor, copy profile folders (see below).
@@ -41,7 +41,7 @@ Do **not** open important repos in Cursor on the Mac until after apply (or you g
 
 ---
 
-## Step 1 — On Windows (manual)
+## Step 1: On Windows (manual)
 
 1. **Quit Cursor** completely (File → Exit, check Task Manager: no `Cursor.app` / `Cursor.exe`).
 2. Copy the **User** folder:
@@ -60,7 +60,7 @@ You do **not** need to copy:
 
 ---
 
-## Step 2 — On Mac (manual placement)
+## Step 2: On Mac (manual placement)
 
 1. Quit Cursor (**Cursor → Quit Cursor**). Activity Monitor may still show **CursorUIViewService**; that is a macOS pointer service, **not** the editor. You do not kill it.
 2. Put the copied **User** folder here (merge/replace):
@@ -80,14 +80,14 @@ You do **not** need to copy:
 4. Put repositories where you want them long term, e.g.:
 
    ```text
-   /Users/jh/DevWorkspaces/timebook
+   /Users/jh/DevWorkspaces/acme
    ```
 
 5. Install [Cursor](https://cursor.com), sign in, optionally import the exported profile.
 
 ---
 
-## Step 3 — Install this tool
+## Step 3: Install this tool
 
 Use **one** of these on the Mac:
 
@@ -126,7 +126,7 @@ python3 -m pip install -e ".[dev]"
 
 ---
 
-## Step 4 — Preview (no changes to Cursor yet)
+## Step 4: Preview (no changes to Cursor yet)
 
 Replace `WINDOWS_USER` and paths with yours. Example for `janusz` / `jh` and `DevWorkspaces`:
 
@@ -144,32 +144,32 @@ This scans copied SQLite databases and config files, then writes reports on the 
 1. Open `cursor-migrate-rename-suggested.txt` and copy only the lines you agree with into `cursor-migrate-rename.txt` (create the file if needed). Add any paths the tool did not guess (Google Drive, `wsgateway` → `ws-gateway`, etc.).
 2. Optionally add Windows paths to abandon in `cursor-migrate-drop.txt` (one full path per line).
 3. Do **not** edit `cursor-migrate-keep.txt`; re-run preview after you copy more repos to the Mac.
-4. Run **Step 5 — Apply** only after you are happy with rename/drop files.
+4. Run **Step 5: Apply** only after you are happy with rename/drop files.
 
 Report files:
 
 | File | Meaning | You edit it? |
 | --- | --- | --- |
-| `cursor-migrate-ready.txt` | Mac folder exists at the mirrored path | No — these attach on apply |
+| `cursor-migrate-ready.txt` | Mac folder exists at the mirrored path | No (they attach on apply) |
 | `cursor-migrate-rename-suggested.txt` | Tool guessed a different Mac folder name | Copy chosen lines into `cursor-migrate-rename.txt` |
-| `cursor-migrate-rename.txt` | **Accepted** Windows→Mac path pairs | **Yes** — one `Windows=Mac` line each |
-| `cursor-migrate-drop.txt` | Chats to **leave** as-is (abandon) | **Yes** — one Windows path per line |
-| `cursor-migrate-keep.txt` | Not applied: missing copy, worktrees, Cursor-internal | **No** — informational |
+| `cursor-migrate-rename.txt` | **Accepted** Windows→Mac path pairs | Yes, one `Windows=Mac` line per row |
+| `cursor-migrate-drop.txt` | Chats to **leave** as-is (abandon) | Yes, one Windows path per line |
+| `cursor-migrate-keep.txt` | Not applied: missing copy, worktrees, Cursor-internal | No (informational) |
 | `cursor-migrate-missing.txt` | Same as `[not-copied]` lines in keep | No |
 | `cursor-migrate-outside-home.txt` | Paths outside `--windows-home` and `--also` | Fix mapping or ignore |
 
 ### Tags in `cursor-migrate-keep.txt`
 
-- **`[not-copied]`** — mirrored Mac path does not exist yet. Copy/clone the project there, or add a manual line to `cursor-migrate-rename.txt`, then preview + apply again.
-- **`[worktree]`** — Cursor/git worktree path you did not copy. Safe to ignore unless you recreate that worktree on the Mac.
-- **`[cursor-internal]`** — Cursor’s own `AppData\Roaming\Cursor\...` workplace files. Per-repo chats in **ready** still work; combined “glass” workplaces from Windows will not reappear unless you copy those files too.
+- **`[not-copied]`**: mirrored Mac path does not exist yet. Copy/clone the project there, or add a manual line to `cursor-migrate-rename.txt`, then preview + apply again.
+- **`[worktree]`**: Cursor/git worktree path you did not copy. Safe to ignore unless you recreate that worktree on the Mac.
+- **`[cursor-internal]`**: Cursor’s own `AppData\Roaming\Cursor\...` workplace files. Per-repo chats in **ready** still work; combined “glass” workplaces from Windows will not reappear unless you copy those files too.
 
 ### Examples for `cursor-migrate-rename.txt`
 
 **Different folder name** (`wsgateway` on Windows, `ws-gateway` on Mac):
 
 ```text
-C:\DevWorkspaces\timebook\wsgateway=/Users/jh/DevWorkspaces/timebook/ws-gateway
+C:\DevWorkspaces\acme\wsgateway=/Users/jh/DevWorkspaces/acme/ws-gateway
 ```
 
 **Google Drive** (Mac client uses `My Drive`):
@@ -181,16 +181,16 @@ C:\Users\janusz\Google Drive\DEVs\AI\books&publications=/Users/jh/Google Drive/M
 **Moved under another parent** (only if you really open the project from the right-hand path):
 
 ```text
-C:\DevWorkspaces\timebook\pricing-engine=/Users/jh/DevWorkspaces/timebook/helm-charts/pricing-engine
+C:\DevWorkspaces\acme\pricing-engine=/Users/jh/DevWorkspaces/acme/helm-charts/pricing-engine
 ```
 
-Do **not** copy rename lines that point at old backups (`Timebook-old`, `timebook-copy`) unless you still use those folders.
+Do **not** copy rename lines that point at old backups (`Acme-old`, `acme-copy`) unless you still use those folders.
 
 `cursor-migrate-drop.txt` stays empty unless you want to permanently skip specific Windows paths (one full path per line).
 
 ---
 
-## Step 5 — Apply
+## Step 5: Apply
 
 Cursor must be quit. Use the same `auto` command with your rename/drop files:
 
@@ -233,11 +233,11 @@ python3 -m cursor_mac_migrate mac-cmd-keybindings
 
 ---
 
-## Step 6 — Open projects on the Mac
+## Step 6: Open projects on the Mac
 
 1. Start Cursor (signed in).
-2. **Customize → Skills** — skills under `~/.cursor/skills` should appear.
-3. **Single repo:** **File → Open Folder** → e.g. `/Users/jh/DevWorkspaces/timebook/gateway`.
+2. Open **Customize → Skills** and confirm skills under `~/.cursor/skills` should appear.
+3. **Single repo:** **File → Open Folder** → e.g. `/Users/jh/DevWorkspaces/acme/gateway`.
 4. **Multi-root workplace:** **File → Open Workspace from File…** → choose the `.code-workspace` file on the Mac.
 
 The Windows agent session for that workspace should show in the sidebar. If not, you opened a different path than the one in `ready` / `rename` (symlink, typo, or wrong parent).
@@ -271,7 +271,7 @@ Lower-level commands (`scan`, `check-map`, `apply --map path-map.json`) still ex
 | Huge Terminal scroll from `scan` | Use `auto` instead; lists go to Desktop files. |
 | Many lines in `missing` / `keep` | Copy repos to the Mac path on the right, or add `cursor-migrate-rename.txt` lines, preview again, apply again. |
 | `wsgateway` not in rename-suggested | Add the `wsgateway` → `ws-gateway` line manually if the Mac folder exists. |
-| `config` vs `ws-config` | `timebook\config` in **ready** is the normal repo folder; `worktrees\config\...` in **keep** is a worktree, not a rename of `config`. |
+| `config` vs `ws-config` | `acme\config` in **ready** is the normal repo folder; `worktrees\config\...` in **keep** is a worktree, not a rename of `config`. |
 | Apply blocked by CursorUIViewService | Use `--allow-running` (editor is already quit). |
 | Empty chat list after open | Path mismatch; run preview again and compare with the folder you opened. |
 | Collision / duplicate workspaceStorage | You opened the folder on the Mac before apply; see `cursor-migrate-not-attached.txt` after apply or move aside the empty Mac `workspaceStorage` id and re-apply. |
@@ -291,4 +291,4 @@ Maintainers: first-time push and branch protection for GitHub are documented in 
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
