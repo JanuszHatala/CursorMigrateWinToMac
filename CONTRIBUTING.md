@@ -10,7 +10,9 @@ git checkout -b cursor/your-change-7cee
 git push -u origin cursor/your-change-7cee
 ```
 
-GitHub Actions must pass before merging. After the first setup, `main` should require pull requests and passing CI (see repository **Settings → Branches → Branch protection rules**).
+GitHub Actions must pass before merging. The required status check name is **CI success** (aggregates Python 3.11 and 3.12 test jobs).
+
+After the first push to GitHub, enable branch protection on `main` (require PR + **CI success**). Step-by-step: [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md).
 
 ## Development
 

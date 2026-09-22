@@ -89,12 +89,26 @@ You do **not** need to copy:
 
 ## Step 3 — Install this tool
 
-Clone the repository (or copy the **parent** folder that contains both `pyproject.toml` and the `cursor_mac_migrate` package directory):
+Use **one** of these on the Mac:
+
+**A. Clone from GitHub (recommended after the repo is published)**
 
 ```bash
 git clone https://github.com/JanuszHatala/CursorMigrateWinToMac.git
 cd CursorMigrateWinToMac
 ```
+
+**B. Copy the folder from Windows (no git on Windows)**
+
+1. On Windows, copy the whole project folder (the one that contains `START-HERE.txt`, `migrate.sh`, `pyproject.toml`, and the `cursor_mac_migrate` package directory) to USB or cloud.
+2. On the Mac, place it on the Desktop (or anywhere convenient).
+3. Open Terminal and `cd` into that folder. Confirm:
+
+   ```bash
+   ls START-HERE.txt README.md pyproject.toml migrate.sh cursor_mac_migrate
+   ```
+
+   `START-HERE.txt` has the same preview/apply commands as below.
 
 There is **no** folder named `cursor-mac-migrate`. The Python package lives in `cursor_mac_migrate/` (underscores). Commands use:
 
@@ -123,7 +137,16 @@ python3 -m cursor_mac_migrate auto \
   --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces'
 ```
 
-This scans copied SQLite databases and config files, then writes reports on the **Desktop**:
+This scans copied SQLite databases and config files, then writes reports on the **Desktop** (same directory as `cursor-migrate-rename.txt` unless you pass `--report-dir`):
+
+**Manual editing between preview and apply**
+
+1. Open `cursor-migrate-rename-suggested.txt` and copy only the lines you agree with into `cursor-migrate-rename.txt` (create the file if needed). Add any paths the tool did not guess (Google Drive, `wsgateway` → `ws-gateway`, etc.).
+2. Optionally add Windows paths to abandon in `cursor-migrate-drop.txt` (one full path per line).
+3. Do **not** edit `cursor-migrate-keep.txt`; re-run preview after you copy more repos to the Mac.
+4. Run **Step 5 — Apply** only after you are happy with rename/drop files.
+
+Report files:
 
 | File | Meaning | You edit it? |
 | --- | --- | --- |
@@ -263,6 +286,8 @@ python -m pytest
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Changes go through pull requests; CI must pass on `main`.
+
+Maintainers: first-time push and branch protection for GitHub are documented in [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md).
 
 ## License
 
