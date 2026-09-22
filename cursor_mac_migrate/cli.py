@@ -189,7 +189,7 @@ def cmd_auto(args: argparse.Namespace) -> int:
     )
     rename_lines = [
         "# Suggested renames. Copy a line into cursor-migrate-rename.txt to accept it.",
-        "# Example: C:\\DevWorkspaces\\some\\wsgateway=/Users/jh/DevWorkspaces/some/ws-gateway",
+        "# Example: C:\\DevWorkspaces\\some\\syncvault=/Users/jh/DevWorkspaces/some/sync-vault",
         *[f"{source}={target}" for source, target in plan.rename_pairs],
     ]
     (desktop / "cursor-migrate-rename-suggested.txt").write_text(
