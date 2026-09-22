@@ -6,18 +6,27 @@ import subprocess
 from pathlib import Path
 
 
+def is_cursor_editor_process(command: str) -> bool:
+    """True only for the Cursor editor, not the macOS CursorUIViewService."""
+    if "cursor_mac_migrate" in command or "pgrep" in command:
+        return False
+    if "CursorUIViewService" in command:
+        return False
+    if "/System/Library/" in command:
+        return False
+    return "Cursor.app" in command or "Cursor Helper" in command
+
+
 def cursor_pids() -> list[str]:
     try:
         out = subprocess.check_output(
-            ["pgrep", "-if", "Cursor"],
+            ["pgrep", "-if", "Cursor.app"],
             text=True,
             stderr=subprocess.DEVNULL,
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
     pids = [line.strip() for line in out.splitlines() if line.strip()]
-    # pgrep -if matches this Python command if it contains "Cursor" in argv.
-    self = str(Path(__file__))
     filtered: list[str] = []
     for pid in pids:
         try:
@@ -30,11 +39,8 @@ def cursor_pids() -> list[str]:
                     stderr=subprocess.DEVNULL,
                 )
             except (subprocess.CalledProcessError, FileNotFoundError):
-                filtered.append(pid)
                 continue
-        if "cursor_mac_migrate" in cmd or "pgrep" in cmd:
-            continue
-        if "Cursor" in cmd or "Cursor Helper" in cmd:
+        if is_cursor_editor_process(cmd):
             filtered.append(pid)
     return filtered
 
