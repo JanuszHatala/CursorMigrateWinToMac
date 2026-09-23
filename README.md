@@ -34,7 +34,7 @@ C:\DevWorkspaces\...           ~/DevWorkspaces/...             chats wired where
 
 1. **On Windows:** quit Cursor, copy profile folders (see below).
 2. **On Mac:** copy those folders into place, clone/copy **this repository**, install Python deps.
-3. **Preview** (`auto` without `--apply`): writes Desktop reports; edit rename/drop files.
+3. **Preview** (`auto` without `--apply`): writes reports into `migrate-work/` inside this tool folder; edit the rename and drop files there.
 4. **Apply** (`auto` with `--apply`): attaches chats for **ready** paths and **accepted renames** only. Everything in **keep** stays unchanged.
 
 Do **not** open important repos in Cursor on the Mac until after apply (or you get empty `workspaceStorage` collisions).
@@ -137,7 +137,7 @@ python3 -m cursor_mac_migrate auto \
   --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces'
 ```
 
-This scans copied SQLite databases and config files, then writes reports on the **Desktop** (same directory as `cursor-migrate-rename.txt` unless you pass `--report-dir`):
+This scans copied SQLite databases and config files, then writes reports into `migrate-work/` next to this tool (override with `--report-dir`):
 
 **Manual editing between preview and apply**
 
@@ -199,8 +199,8 @@ python3 -m cursor_mac_migrate auto \
   --windows-home 'C:\Users\janusz' \
   --mac-home /Users/jh \
   --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces' \
-  --renames "$HOME/Desktop/cursor-migrate-rename.txt" \
-  --drop "$HOME/Desktop/cursor-migrate-drop.txt" \
+  --renames migrate-work/cursor-migrate-rename.txt \
+  --drop migrate-work/cursor-migrate-drop.txt \
   --apply
 ```
 
@@ -249,13 +249,13 @@ The Windows agent session for that workspace should show in the sidebar. If not,
 ## Command reference
 
 ```bash
-# Preview + Desktop reports (default output location: ~/Desktop)
+# Preview. Lists go to migrate-work/ inside this folder.
 python3 -m cursor_mac_migrate auto --windows-home 'C:\Users\janusz' --mac-home /Users/jh \
   --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces'
 
 # Apply with selective renames/drops
-python3 -m cursor_mac_migrate auto ... --renames ~/Desktop/cursor-migrate-rename.txt \
-  --drop ~/Desktop/cursor-migrate-drop.txt --apply [--allow-running]
+python3 -m cursor_mac_migrate auto ... --renames migrate-work/cursor-migrate-rename.txt \
+  --drop migrate-work/cursor-migrate-drop.txt --apply [--allow-running]
 
 # After apply
 python3 -m cursor_mac_migrate verify
@@ -270,7 +270,7 @@ Lower-level commands (`scan`, `check-map`, `apply --map path-map.json`) still ex
 
 | Problem | What to do |
 | --- | --- |
-| Huge Terminal scroll from `scan` | Use `auto` instead; lists go to Desktop files. |
+| Huge Terminal scroll from `scan` | Use `auto` instead; lists go to `migrate-work/`. |
 | Many lines in `missing` / `keep` | Copy repos to the Mac path on the right, or add `cursor-migrate-rename.txt` lines, preview again, apply again. |
 | `syncvault` not in rename-suggested | Add the `syncvault` → `sync-vault` line manually if the Mac folder exists. |
 | `config` vs `ws-config` | `acme\config` in **ready** is the normal repo folder; `worktrees\config\...` in **keep** is a worktree, not a rename of `config`. |
@@ -290,7 +290,7 @@ python3 -m cursor_mac_migrate fix-workspaces \
   --windows-home 'C:\Users\janusz' \
   --mac-home /Users/jh \
   --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces' \
-  --renames "$HOME/Desktop/cursor-migrate-rename.txt"
+  --renames migrate-work/cursor-migrate-rename.txt
 ```
 
 This rewrites leftover Windows paths in named workspaces, `.code-workspace` files inside your repos, profile text files, and every Cursor state database (including compressed values and the Glass project list). It does not move chat databases again. If a Windows path is still stored, the command prints it and exits with an error. Open Cursor afterward and check the folder list. Run it again after `git pull` if an earlier run only fixed some workspaces.
