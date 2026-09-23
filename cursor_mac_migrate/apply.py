@@ -11,7 +11,7 @@ from cursor_mac_migrate.detect import scan_tree
 from cursor_mac_migrate.extensions import iter_extensions
 from cursor_mac_migrate.files_rewrite import iter_text_files, rewrite_file
 from cursor_mac_migrate.mapping import PathMap, RootMap, missing_mac_targets
-from cursor_mac_migrate.sidecars import rewrite_sidecars
+from cursor_mac_migrate.sidecars import rewrite_sidecars, rewrite_workspace_files_on_mac
 from cursor_mac_migrate.skills import list_skills, rename_project_dirs
 from cursor_mac_migrate.sqlite_rewrite import checkpoint_and_copy, rewrite_db
 from cursor_mac_migrate.workspace_relink import RelinkResult, relink_workspaces
@@ -61,8 +61,7 @@ def apply_map(
             checkpoint_and_copy(db, backup_dir / "sqlite" / _backup_name(user_dir, db))
 
     relink = relink_workspaces(user_dir, path_map, dry_run=dry_run)
-    rewriter = path_map.rewriter(relink.id_map)
-    sidecar_rewriter = _string_rewriter(path_map, rewrite_roots, relink.id_map)
+    rewriter = _string_rewriter(path_map, rewrite_roots, relink.id_map)
 
     report = ApplyReport(backup_dir=backup_dir, relink=relink, warnings=warnings)
     report.skills = [str(path) for path in list_skills(dot_cursor)]
@@ -80,7 +79,9 @@ def apply_map(
         if stats.changed:
             report.files.append(str(path))
 
-    for path in rewrite_sidecars(user_dir, sidecar_rewriter, dry_run=dry_run):
+    for path in rewrite_sidecars(user_dir, rewriter, dry_run=dry_run):
+        report.files.append(str(path))
+    for path in rewrite_workspace_files_on_mac(path_map if not rewrite_roots else _broader_map(path_map, rewrite_roots), rewriter, dry_run=dry_run):
         report.files.append(str(path))
 
     windows_paths = list(pre_scan.windows_paths) or _windows_from_map(path_map)
@@ -119,9 +120,12 @@ def rewrite_stored_paths(path_map: PathMap, *, dry_run: bool = False) -> list[st
     assert user_dir is not None and dot_cursor is not None
     rewriter = path_map.rewriter()
     changed: list[str] = []
+    notes: list[str] = []
     for path in rewrite_sidecars(user_dir, rewriter, dry_run=dry_run):
         changed.append(str(path))
-    for path in iter_text_files(user_dir) + iter_text_files(dot_cursor):
+    for path in rewrite_workspace_files_on_mac(path_map, rewriter, dry_run=dry_run):
+        changed.append(str(path))
+    for path in iter_text_files(user_dir) + iter_text_files(dot_cursor) + iter_text_files(user_dir.parent):
         stats = rewrite_file(path, rewriter, dry_run=dry_run)
         if stats.changed:
             changed.append(str(path))
@@ -129,7 +133,16 @@ def rewrite_stored_paths(path_map: PathMap, *, dry_run: bool = False) -> list[st
         stats = rewrite_db(db, rewriter, dry_run=dry_run)
         if stats.rows_changed:
             changed.append(f"{db} ({stats.rows_changed} rows)")
-    return changed
+        if stats.skipped_binary:
+            notes.append(f"{db}: left {stats.skipped_binary} binary cell(s) unchanged")
+    unique: list[str] = []
+    seen: set[str] = set()
+    for item in changed + notes:
+        if item in seen:
+            continue
+        seen.add(item)
+        unique.append(item)
+    return unique
 
 
 def _string_rewriter(path_map: PathMap, rewrite_roots: list[RootMap] | None, id_map: dict[str, str]):
@@ -145,15 +158,20 @@ def _string_rewriter(path_map: PathMap, rewrite_roots: list[RootMap] | None, id_
     return broader.rewriter(id_map)
 
 
+def _broader_map(path_map: PathMap, rewrite_roots: list[RootMap]) -> PathMap:
+    return PathMap(
+        roots=[*rewrite_roots, *path_map.roots],
+        python=path_map.python,
+        intellij=path_map.intellij,
+        user_dir=path_map.user_dir,
+        dot_cursor=path_map.dot_cursor,
+    )
+
+
 def _db_paths(user_dir: Path) -> list[Path]:
-    paths: list[Path] = []
-    global_db = user_dir / "globalStorage" / "state.vscdb"
-    if global_db.exists():
-        paths.append(global_db)
-    storage = user_dir / "workspaceStorage"
-    if storage.is_dir():
-        paths.extend(sorted(storage.glob("*/state.vscdb")))
-    return paths
+    from cursor_mac_migrate.sqlite_rewrite import discover_state_dbs
+
+    return discover_state_dbs(user_dir)
 
 
 def _backup_name(user_dir: Path, db: Path) -> Path:

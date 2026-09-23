@@ -339,15 +339,27 @@ def cmd_fix_workspaces(args: argparse.Namespace) -> int:
     path_map = PathMap(roots=roots, user_dir=user_dir, dot_cursor=dot_cursor)
     assert_cursor_closed(allow_running=args.allow_running)
     changed = rewrite_stored_paths(path_map, dry_run=args.dry_run)
-    if not changed:
-        print("No Windows paths matched the folders you mapped.")
-        print("Check --windows-home, --mac-home, and --also.")
-        return 0
     label = "Would update" if args.dry_run else "Updated"
-    print(f"{label} {len(changed)} file(s):")
-    for path in changed:
-        print(f"  {path}")
-    if not args.dry_run:
+    if changed:
+        print(f"{label} {len(changed)} file(s):")
+        for path in changed:
+            print(f"  {path}")
+    else:
+        print("No Windows paths matched the folders you mapped.")
+    scan = scan_tree(user_dir, dot_cursor)
+    if scan.windows_paths:
+        print()
+        print("Windows paths still stored after this pass:")
+        for path, count in scan.windows_paths.most_common(40):
+            print(f"  {path} ({count})")
+        if scan.files_with_windows:
+            print("Files:")
+            for path in scan.files_with_windows[:20]:
+                print(f"  {path}")
+        return 1
+    if not changed:
+        print("Check --windows-home, --mac-home, and --also.")
+    else:
         print()
         print("Open Cursor and check the workspace folder list. It should show Mac paths.")
     return 0

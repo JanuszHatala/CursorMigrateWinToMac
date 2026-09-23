@@ -37,6 +37,7 @@ SKIP_DIR_NAMES = {
     "blob_storage",
     "node_modules",
     ".git",
+    "extensions",
 }
 
 
@@ -89,7 +90,7 @@ def iter_text_files(root: Path) -> list[Path]:
     for path in root.rglob("*"):
         if not path.is_file():
             continue
-        if any(part in SKIP_DIR_NAMES for part in path.parts):
+        if any(part in SKIP_DIR_NAMES or part.startswith("User.mac-migrate-backup") for part in path.parts):
             continue
         if path.suffix.lower() in TEXT_SUFFIXES or path.name in {
             "mcp.json",
@@ -101,6 +102,32 @@ def iter_text_files(root: Path) -> list[Path]:
             "workspace.json",
             "storage.json",
         }:
+            files.append(path)
+            continue
+        if path.suffix.lower() in {
+            ".vscdb",
+            ".db",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".webp",
+            ".wasm",
+            ".node",
+            ".zip",
+            ".pak",
+            ".dll",
+            ".exe",
+            ".so",
+            ".dylib",
+        }:
+            continue
+        try:
+            if path.stat().st_size > 2_000_000:
+                continue
+        except OSError:
+            continue
+        if scan_file_for_windows(path):
             files.append(path)
     return files
 
