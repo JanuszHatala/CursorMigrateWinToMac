@@ -10,8 +10,8 @@ from pathlib import Path
 
 from cursor_mac_migrate.files_rewrite import iter_text_files
 from cursor_mac_migrate.sidecars import sidecar_roots
-from cursor_mac_migrate.paths import extract_windows_paths, suggest_roots
-from cursor_mac_migrate.sqlite_rewrite import TABLES
+from cursor_mac_migrate.paths import extract_windows_paths, looks_like_windows_path, suggest_roots
+from cursor_mac_migrate.sqlite_rewrite import discover_state_dbs
 from cursor_mac_migrate.workspace_relink import (
     file_uri_to_native,
     read_workspace_json,
@@ -80,14 +80,7 @@ def scan_tree(user_dir: Path, dot_cursor: Path) -> ScanResult:
 
 
 def _sqlite_files(user_dir: Path) -> list[Path]:
-    files: list[Path] = []
-    global_db = user_dir / "globalStorage" / "state.vscdb"
-    if global_db.exists():
-        files.append(global_db)
-    storage = user_dir / "workspaceStorage"
-    if storage.is_dir():
-        files.extend(storage.glob("*/state.vscdb"))
-    return files
+    return discover_state_dbs(user_dir)
 
 
 def _scan_sqlite(db_path: Path, result: ScanResult) -> None:
@@ -102,21 +95,28 @@ def _scan_sqlite(db_path: Path, result: ScanResult) -> None:
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )
         }
-        for table in TABLES:
-            if table not in tables:
+        for table in tables:
+            if table.startswith("sqlite_"):
                 continue
+            qtable = '"' + table.replace('"', '""') + '"'
             try:
-                rows = conn.execute(f"SELECT value FROM {table}")
+                columns = [row[1] for row in conn.execute(f"PRAGMA table_info({qtable})")]
             except sqlite3.Error:
                 continue
-            for (value,) in rows:
-                text = _cell_text(value)
-                if not text:
+            for column in columns:
+                qcolumn = '"' + column.replace('"', '""') + '"'
+                try:
+                    rows = conn.execute(f"SELECT {qcolumn} FROM {qtable}")
+                except sqlite3.Error:
                     continue
-                found = extract_windows_paths(text)
-                for item in found:
-                    result.windows_paths[item] += 1
-                    _classify(item, text, result)
+                for (value,) in rows:
+                    text = _cell_text(value)
+                    if not text or not looks_like_windows_path(text):
+                        continue
+                    found = extract_windows_paths(text)
+                    for item in found:
+                        result.windows_paths[item] += 1
+                        _classify(item, text, result)
     finally:
         conn.close()
 
@@ -124,6 +124,13 @@ def _scan_sqlite(db_path: Path, result: ScanResult) -> None:
 def _cell_text(value) -> str:
     if value is None:
         return ""
+    if isinstance(value, bytes) and value[:2] == b"\x1f\x8b":
+        import gzip
+
+        try:
+            value = gzip.decompress(value)
+        except (OSError, EOFError, gzip.BadGzipFile):
+            return ""
     if isinstance(value, bytes):
         try:
             return value.decode("utf-8")
