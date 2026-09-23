@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from cursor_mac_migrate import __version__
-from cursor_mac_migrate.apply import apply_map, write_report
+from cursor_mac_migrate.apply import apply_map, rewrite_stored_paths, write_report
 from cursor_mac_migrate.auto import (
     build_auto_plan,
     load_pair_file,
@@ -19,6 +19,8 @@ from cursor_mac_migrate.detect import proposed_map, scan_tree
 from cursor_mac_migrate.extensions import cursor_cli, iter_extensions, reinstall
 from cursor_mac_migrate.lock import assert_cursor_closed
 from cursor_mac_migrate.mapping import (
+    PathMap,
+    RootMap,
     default_dot_cursor,
     default_intellij,
     default_python,
@@ -27,6 +29,7 @@ from cursor_mac_migrate.mapping import (
     load_path_map,
     missing_mac_targets,
 )
+from cursor_mac_migrate.paths import normalize_windows_path
 from cursor_mac_migrate.skills import list_skills
 
 
@@ -115,6 +118,23 @@ def main(argv: list[str] | None = None) -> int:
     keys_p.add_argument("--dry-run", action="store_true")
     keys_p.add_argument("--allow-running", action="store_true")
 
+    fix_p = sub.add_parser(
+        "fix-workspaces",
+        help="Rewrite leftover Windows paths in named workspaces and profile files. Does not move chats.",
+    )
+    _add_common(fix_p)
+    fix_p.add_argument("--windows-home", required=True, help=r"Example: C:\Users\janusz")
+    fix_p.add_argument("--mac-home", default=str(Path.home()), help="Example: /Users/jh")
+    fix_p.add_argument(
+        "--also",
+        action="append",
+        default=[],
+        help=r"Another folder pair, Windows=Mac. Example: C:\DevWorkspaces=/Users/jh/DevWorkspaces",
+    )
+    fix_p.add_argument("--renames", type=Path, default=None, help="cursor-migrate-rename.txt")
+    fix_p.add_argument("--dry-run", action="store_true")
+    fix_p.add_argument("--allow-running", action="store_true")
+
     args = parser.parse_args(argv)
     if args.cmd == "auto":
         return cmd_auto(args)
@@ -130,6 +150,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_reinstall(args)
     if args.cmd == "mac-cmd-keybindings":
         return cmd_keybindings(args)
+    if args.cmd == "fix-workspaces":
+        return cmd_fix_workspaces(args)
     return 2
 
 
@@ -260,7 +282,12 @@ def cmd_auto(args: argparse.Namespace) -> int:
             print(f"  {source}")
 
     assert_cursor_closed(allow_running=args.allow_running)
-    report = apply_map(apply_plan, dry_run=False, skip_missing=True)
+    report = apply_map(
+        apply_plan,
+        dry_run=False,
+        skip_missing=True,
+        rewrite_roots=plan.path_map.roots,
+    )
     report_path = desktop / "cursor-migrate-report.json"
     write_report(report, report_path)
     attached = [item for item in report.relink.items if item.status in {"renamed", "unchanged-id"}]
@@ -284,6 +311,45 @@ def cmd_auto(args: argparse.Namespace) -> int:
     print()
     print("Open Cursor. File → Open Folder, or File → Open Workspace from File for a .code-workspace.")
     print("The Windows chat for that project should be in the agent list.")
+    return 0
+
+
+def cmd_fix_workspaces(args: argparse.Namespace) -> int:
+    user_dir = args.user_dir.expanduser()
+    dot_cursor = args.dot_cursor.expanduser()
+    if not user_dir.exists():
+        print(f"No Cursor User folder at {user_dir}")
+        return 1
+    extra: list[tuple[str, str]] = []
+    for item in args.also:
+        if "=" not in item:
+            print(r"Each --also value must look like C:\DevWorkspaces=/Users/jh/DevWorkspaces")
+            print(f"This one does not: {item}")
+            return 1
+        source, target = item.split("=", 1)
+        extra.append((source, target))
+    renames = load_pair_file(args.renames) if args.renames else []
+    roots = [
+        RootMap(normalize_windows_path(args.windows_home), str(Path(args.mac_home).expanduser()), "folder"),
+    ]
+    for source, target in extra:
+        roots.append(RootMap(normalize_windows_path(source), str(Path(target).expanduser()), "folder"))
+    for source, target in renames:
+        roots.append(RootMap(normalize_windows_path(source), str(Path(target).expanduser()), "folder"))
+    path_map = PathMap(roots=roots, user_dir=user_dir, dot_cursor=dot_cursor)
+    assert_cursor_closed(allow_running=args.allow_running)
+    changed = rewrite_stored_paths(path_map, dry_run=args.dry_run)
+    if not changed:
+        print("No Windows paths matched the folders you mapped.")
+        print("Check --windows-home, --mac-home, and --also.")
+        return 0
+    label = "Would update" if args.dry_run else "Updated"
+    print(f"{label} {len(changed)} file(s):")
+    for path in changed:
+        print(f"  {path}")
+    if not args.dry_run:
+        print()
+        print("Open Cursor and check the workspace folder list. It should show Mac paths.")
     return 0
 
 
