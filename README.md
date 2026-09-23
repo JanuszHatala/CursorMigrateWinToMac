@@ -293,7 +293,7 @@ python3 -m cursor_mac_migrate fix-workspaces \
   --renames "$HOME/Desktop/cursor-migrate-rename.txt"
 ```
 
-This rewrites leftover Windows paths in `glassMultiRootWorkspaces`, `Workspaces`, the User folder, and `~/.cursor`. It does not move chat databases again. Open Cursor afterward and check the folder list.
+This rewrites leftover Windows paths in named workspaces, `.code-workspace` files inside your repos, profile text files, and every Cursor state database (including compressed values and the Glass project list). It does not move chat databases again. If a Windows path is still stored, the command prints it and exits with an error. Open Cursor afterward and check the folder list. Run it again after `git pull` if an earlier run only fixed some workspaces.
 
 ## Development
 
