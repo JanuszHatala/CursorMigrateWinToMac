@@ -26,12 +26,12 @@ source .venv/bin/activate
 python3 -m pip install -e ".[dev]"
 python3 -m cursor_mac_migrate auto --windows-home 'C:\Users\janusz' --mac-home /Users/jh --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces'
 
-That preview does not change Cursor. It writes lists on the Desktop.
-Copy wanted lines from cursor-migrate-rename-suggested.txt into cursor-migrate-rename.txt.
-Put chats you want to abandon into cursor-migrate-drop.txt, one Windows path per line.
-Leave cursor-migrate-keep.txt alone. Those are missing copies, worktrees, and Roaming\Cursor\Workspaces.
+That preview does not change Cursor. It writes lists in the migrate-work folder inside this tool folder.
+Copy wanted lines from migrate-work/cursor-migrate-rename-suggested.txt into migrate-work/cursor-migrate-rename.txt.
+Put chats you want to abandon into migrate-work/cursor-migrate-drop.txt, one Windows path per line.
+Leave migrate-work/cursor-migrate-keep.txt alone. Those are missing copies, worktrees, and Roaming\Cursor\Workspaces.
 
 Then, with Cursor still quit:
 
-python3 -m cursor_mac_migrate auto --windows-home 'C:\Users\janusz' --mac-home /Users/jh --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces' --renames "$HOME/Desktop/cursor-migrate-rename.txt" --drop "$HOME/Desktop/cursor-migrate-drop.txt" --apply
+python3 -m cursor_mac_migrate auto --windows-home 'C:\Users\janusz' --mac-home /Users/jh --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces' --renames migrate-work/cursor-migrate-rename.txt --drop migrate-work/cursor-migrate-drop.txt --apply
 

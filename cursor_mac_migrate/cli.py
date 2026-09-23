@@ -31,6 +31,7 @@ from cursor_mac_migrate.mapping import (
 )
 from cursor_mac_migrate.paths import normalize_windows_path
 from cursor_mac_migrate.skills import list_skills
+from cursor_mac_migrate.workdir import default_report_dir
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -63,6 +64,12 @@ def main(argv: list[str] | None = None) -> int:
     auto_p.add_argument("--renames", type=Path, default=None, help="Edited cursor-migrate-rename.txt")
     auto_p.add_argument("--drop", type=Path, default=None, help="Windows paths to leave untouched")
     auto_p.add_argument("--allow-running", action="store_true")
+    auto_p.add_argument(
+        "--report-dir",
+        type=Path,
+        default=None,
+        help="Folder for cursor-migrate-*.txt. Default: migrate-work next to this tool.",
+    )
 
     scan_p = sub.add_parser("scan", help="Find Windows paths still stored in the copied profile")
     _add_common(scan_p)
@@ -102,6 +109,12 @@ def main(argv: list[str] | None = None) -> int:
     verify_p = sub.add_parser("verify", help="Show leftover Windows paths, skills, and native extensions")
     _add_common(verify_p)
     verify_p.add_argument("--map", type=Path, required=False)
+    verify_p.add_argument(
+        "--report-dir",
+        type=Path,
+        default=None,
+        help="Folder for cursor-migrate-still-windows.txt. Default: migrate-work next to this tool.",
+    )
 
     ext_p = sub.add_parser(
         "reinstall-native-extensions",
@@ -170,6 +183,12 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _report_dir(value: Path | None) -> Path:
+    path = value.expanduser() if value is not None else default_report_dir()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def cmd_auto(args: argparse.Namespace) -> int:
     user_dir = args.user_dir.expanduser()
     dot_cursor = args.dot_cursor.expanduser()
@@ -180,8 +199,7 @@ def cmd_auto(args: argparse.Namespace) -> int:
         print("You should see settings.json in that folder. It is not there yet.")
         return 1
     mac_home = str(Path(args.mac_home).expanduser())
-    desktop = Path(mac_home) / "Desktop"
-    desktop.mkdir(parents=True, exist_ok=True)
+    reports = _report_dir(args.report_dir)
     print("Reading the copied Cursor data. This can take a minute. Nothing is printed until it finishes.")
     scan = scan_tree(user_dir, dot_cursor)
     intellij = args.intellij if args.intellij else default_intellij()
@@ -203,9 +221,9 @@ def cmd_auto(args: argparse.Namespace) -> int:
         dot_cursor=dot_cursor,
         extra_prefixes=extra,
     )
-    map_path = desktop / "path-map.json"
+    map_path = reports / "path-map.json"
     map_path.write_text(json.dumps(dump_path_map(plan.path_map), indent=2) + "\n", encoding="utf-8")
-    (desktop / "cursor-migrate-ready.txt").write_text(
+    (reports / "cursor-migrate-ready.txt").write_text(
         "\n".join(plan.ready) + ("\n" if plan.ready else ""),
         encoding="utf-8",
     )
@@ -214,21 +232,21 @@ def cmd_auto(args: argparse.Namespace) -> int:
         "# Example: C:\\DevWorkspaces\\some\\syncvault=/Users/jh/DevWorkspaces/some/sync-vault",
         *[f"{source}={target}" for source, target in plan.rename_pairs],
     ]
-    (desktop / "cursor-migrate-rename-suggested.txt").write_text(
+    (reports / "cursor-migrate-rename-suggested.txt").write_text(
         "\n".join(rename_lines) + "\n",
         encoding="utf-8",
     )
-    rename_file = desktop / "cursor-migrate-rename.txt"
+    rename_file = reports / "cursor-migrate-rename.txt"
     if not rename_file.exists():
         rename_file.write_text(
             "# Accepted renames. One Windows path=Mac path per line.\n",
             encoding="utf-8",
         )
-    (desktop / "cursor-migrate-missing.txt").write_text(
+    (reports / "cursor-migrate-missing.txt").write_text(
         "\n".join(plan.missing) + ("\n" if plan.missing else ""),
         encoding="utf-8",
     )
-    (desktop / "cursor-migrate-keep.txt").write_text(
+    (reports / "cursor-migrate-keep.txt").write_text(
         "\n".join(
             [
                 "# Left untouched. Copy a [not-copied] folder to the Mac path, then run the preview again.",
@@ -239,12 +257,12 @@ def cmd_auto(args: argparse.Namespace) -> int:
         + "\n",
         encoding="utf-8",
     )
-    (desktop / "cursor-migrate-outside-home.txt").write_text(
+    (reports / "cursor-migrate-outside-home.txt").write_text(
         "\n".join(plan.outside_home) + ("\n" if plan.outside_home else ""),
         encoding="utf-8",
     )
-    if not (desktop / "cursor-migrate-drop.txt").exists():
-        (desktop / "cursor-migrate-drop.txt").write_text(
+    if not (reports / "cursor-migrate-drop.txt").exists():
+        (reports / "cursor-migrate-drop.txt").write_text(
             "# One Windows path per line. These chats are left unchanged.\n",
             encoding="utf-8",
         )
@@ -257,17 +275,17 @@ def cmd_auto(args: argparse.Namespace) -> int:
     print(f"Worktrees and Cursor-internal paths, left unchanged: {len(plan.keep) - len(plan.missing)}")
     print(f"Outside C:\\Users\\janusz and the --also folders: {len(plan.outside_home)}")
     print()
-    print("On the Desktop:")
-    print(f"  {desktop / 'cursor-migrate-ready.txt'}")
-    print(f"  {desktop / 'cursor-migrate-rename-suggested.txt'}")
-    print(f"  {desktop / 'cursor-migrate-rename.txt'}")
-    print(f"  {desktop / 'cursor-migrate-keep.txt'}")
-    print(f"  {desktop / 'cursor-migrate-drop.txt'}")
-    print(f"  {desktop / 'cursor-migrate-outside-home.txt'}")
+    print(f"Reports ({reports}):")
+    print(f"  {reports / 'cursor-migrate-ready.txt'}")
+    print(f"  {reports / 'cursor-migrate-rename-suggested.txt'}")
+    print(f"  {reports / 'cursor-migrate-rename.txt'}")
+    print(f"  {reports / 'cursor-migrate-keep.txt'}")
+    print(f"  {reports / 'cursor-migrate-drop.txt'}")
+    print(f"  {reports / 'cursor-migrate-outside-home.txt'}")
 
     if not args.apply:
         print()
-        print("Edit cursor-migrate-rename.txt and cursor-migrate-drop.txt on the Desktop.")
+        print(f"Edit {reports / 'cursor-migrate-rename.txt'} and {reports / 'cursor-migrate-drop.txt'}.")
         print("Then run the same command again with --renames, --drop, and --apply.")
         print("Projects in cursor-migrate-keep.txt are not touched.")
         return 0
@@ -288,11 +306,11 @@ def cmd_auto(args: argparse.Namespace) -> int:
         skip_missing=True,
         rewrite_roots=plan.path_map.roots,
     )
-    report_path = desktop / "cursor-migrate-report.json"
+    report_path = reports / "cursor-migrate-report.json"
     write_report(report, report_path)
     attached = [item for item in report.relink.items if item.status in {"renamed", "unchanged-id"}]
     not_attached = [item for item in report.relink.items if item.status not in {"renamed", "unchanged-id", "skip"}]
-    (desktop / "cursor-migrate-not-attached.txt").write_text(
+    (reports / "cursor-migrate-not-attached.txt").write_text(
         "\n".join(
             f"{item.status}\t{item.windows_uri}\t{item.mac_path}\t{item.detail}"
             for item in not_attached
@@ -305,7 +323,7 @@ def cmd_auto(args: argparse.Namespace) -> int:
     print(f"Chats attached to a Mac folder: {len(attached)}")
     print(f"Chats left unattached: {len(not_attached)}")
     if not_attached:
-        print(f"  See {desktop / 'cursor-migrate-not-attached.txt'}")
+        print(f"  See {reports / 'cursor-migrate-not-attached.txt'}")
     print(f"Text files updated: {len(report.files)}")
     print(f"Skills: {len(report.skills)}")
     print()
@@ -495,12 +513,12 @@ def cmd_verify(args: argparse.Namespace) -> int:
     leftover = scan.windows_paths
     print(f"Windows paths still stored: {len(leftover)}")
     if leftover:
-        desktop = Path.home() / "Desktop" / "cursor-migrate-still-windows.txt"
-        desktop.write_text(
+        still = _report_dir(args.report_dir) / "cursor-migrate-still-windows.txt"
+        still.write_text(
             "\n".join(f"{count}\t{path}" for path, count in leftover.most_common()) + "\n",
             encoding="utf-8",
         )
-        print(f"  The list is in {desktop}")
+        print(f"  The list is in {still}")
         print("  It is not printed here.")
         status = 1
     else:
