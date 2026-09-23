@@ -204,7 +204,9 @@ python3 -m cursor_mac_migrate auto \
   --apply
 ```
 
-If apply stops with *“Cursor is still running”* but only **CursorUIViewService** appears in Activity Monitor, add:
+Apply also rewrites named multi-folder workspaces stored beside the User folder (`glassMultiRootWorkspaces` and `Workspaces`). Those are the lists behind the Add Folders dialog. The dialog's Save button stays disabled when the stored folder does not exist on the Mac, so edit the file with the tool instead of that dialog.
+
+If apply stops with *"Cursor is still running"* but only **CursorUIViewService** appears in Activity Monitor, add:
 
 ```bash
   --allow-running
@@ -275,8 +277,23 @@ Lower-level commands (`scan`, `check-map`, `apply --map path-map.json`) still ex
 | Apply blocked by CursorUIViewService | Use `--allow-running` (editor is already quit). |
 | Empty chat list after open | Path mismatch; run preview again and compare with the folder you opened. |
 | Collision / duplicate workspaceStorage | You opened the folder on the Mac before apply; see `cursor-migrate-not-attached.txt` after apply or move aside the empty Mac `workspaceStorage` id and re-apply. |
+| Add Folders still shows `c:/...` and Save stays grey | Quit Cursor, then run `fix-workspaces` (below). |
 
 ---
+
+## Already migrated, but a workspace still shows a Windows path
+
+Quit Cursor (Cmd+Q). Then, from this repository:
+
+```bash
+python3 -m cursor_mac_migrate fix-workspaces \
+  --windows-home 'C:\Users\janusz' \
+  --mac-home /Users/jh \
+  --also 'C:\DevWorkspaces=/Users/jh/DevWorkspaces' \
+  --renames "$HOME/Desktop/cursor-migrate-rename.txt"
+```
+
+This rewrites leftover Windows paths in `glassMultiRootWorkspaces`, `Workspaces`, the User folder, and `~/.cursor`. It does not move chat databases again. Open Cursor afterward and check the folder list.
 
 ## Development
 

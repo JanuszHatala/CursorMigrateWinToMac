@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from cursor_mac_migrate.files_rewrite import iter_text_files
+from cursor_mac_migrate.sidecars import sidecar_roots
 from cursor_mac_migrate.paths import extract_windows_paths, suggest_roots
 from cursor_mac_migrate.sqlite_rewrite import TABLES
 from cursor_mac_migrate.workspace_relink import (
@@ -31,7 +32,7 @@ class ScanResult:
 
 def scan_tree(user_dir: Path, dot_cursor: Path) -> ScanResult:
     result = ScanResult()
-    for root in (user_dir, dot_cursor):
+    for root in (user_dir, dot_cursor, *sidecar_roots(user_dir)):
         if not root.exists():
             continue
         for path in iter_text_files(root):
